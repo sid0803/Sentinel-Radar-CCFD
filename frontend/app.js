@@ -17,86 +17,93 @@ let dbVerdictChartInstance = null;
 let dbAmountChartInstance = null;
 
 // DOM Elements
-const slidersColLeft = document.getElementById('sliders-col-left');
-const slidersColRight = document.getElementById('sliders-col-right');
-const pcaToggle = document.getElementById('pca-toggle');
-const pcaSection = document.querySelector('.pca-section');
+let slidersColLeft = null;
+let slidersColRight = null;
+let pcaToggle = null;
+let pcaSection = null;
 
-const analyzerForm = document.getElementById('analyzer-form');
-const submitBtn = document.getElementById('submit-btn');
-const resetBtn = document.getElementById('reset-btn');
-const randomizeBtn = document.getElementById('randomize-btn');
-const btnSpinner = document.getElementById('btn-spinner');
+let analyzerForm = null;
+let submitBtn = null;
+let resetBtn = null;
+let randomizeBtn = null;
+let btnSpinner = null;
 
-const inputCardholder = document.getElementById('input-cardholder');
-const inputCardNumber = document.getElementById('input-card-number');
-const inputTime = document.getElementById('input-time');
-const inputAmount = document.getElementById('input-amount');
-const inputMerchant = document.getElementById('input-merchant');
-const inputCategory = document.getElementById('input-category');
-const inputCountry = document.getElementById('input-country');
-const inputDevice = document.getElementById('input-device');
-const timeHelper = document.getElementById('time-helper');
+let inputCardholder = null;
+let inputCardNumber = null;
+let inputTime = null;
+let inputAmount = null;
+let inputMerchant = null;
+let inputCategory = null;
+let inputCountry = null;
+let inputDevice = null;
+let timeHelper = null;
 
-const cardDisplayNumber = document.getElementById('card-display-number');
-const cardDisplayName = document.getElementById('card-display-name');
+let cardDisplayNumber = null;
+let cardDisplayName = null;
 
-const verdictSection = document.getElementById('verdict-section');
-const verdictBannerCard = document.getElementById('verdict-banner-card');
-const ensembleBadge = document.getElementById('ensemble-badge');
-const ensembleVerdictTitle = document.getElementById('ensemble-verdict-title');
-const ensembleConfidencePercent = document.getElementById('ensemble-confidence-percent');
-const ensembleVotes = document.getElementById('ensemble-votes');
-const riskThermometerBar = document.getElementById('risk-thermometer-bar');
-const riskValueText = document.getElementById('risk-value-text');
+let verdictSection = null;
+let verdictBannerCard = null;
+let ensembleBadge = null;
+let ensembleVerdictTitle = null;
+let ensembleConfidencePercent = null;
+let ensembleVotes = null;
+let riskThermometerBar = null;
+let riskValueText = null;
 
-const gaugeRf = document.getElementById('gauge-rf');
-const gaugeXgb = document.getElementById('gauge-xgb');
-const gaugeLgbm = document.getElementById('gauge-lgbm');
-const gaugeValRf = document.getElementById('gauge-val-rf');
-const gaugeValXgb = document.getElementById('gauge-val-xgb');
-const gaugeValLgbm = document.getElementById('gauge-val-lgbm');
-const badgeRf = document.getElementById('badge-rf');
-const badgeXgb = document.getElementById('badge-xgb');
-const badgeLgbm = document.getElementById('badge-lgbm');
+let gaugeRf = null;
+let gaugeXgb = null;
+let gaugeLgbm = null;
+let gaugeValRf = null;
+let gaugeValXgb = null;
+let gaugeValLgbm = null;
+let badgeRf = null;
+let badgeXgb = null;
+let badgeLgbm = null;
 
-const shapSection = document.getElementById('shap-section');
-const shapModelSelect = document.getElementById('shap-model-select');
-const shapSummaryText = document.getElementById('shap-summary-text');
+let shapSection = null;
+let shapModelSelect = null;
+let shapSummaryText = null;
 
-const metricsTableBody = document.getElementById('metrics-table-body');
-const importanceModelSelect = document.getElementById('importance-model-select');
+let metricsTableBody = null;
+let importanceModelSelect = null;
 
 // Sidebar link navigation controls
-const sidebarLinks = document.querySelectorAll('.sidebar-link');
-const viewPanels = document.querySelectorAll('.view-panel');
-const pageTitle = document.getElementById('page-title');
+let sidebarLinks = null;
+let viewPanels = null;
+let pageTitle = null;
 
 // Top bar stats
-const pillAnalyzed = document.getElementById('pill-analyzed');
-const pillFlagged = document.getElementById('pill-flagged');
-const pillFraudRate = document.getElementById('pill-fraud-rate');
+let pillAnalyzed = null;
+let pillFlagged = null;
+let pillFraudRate = null;
 
 // Dashboard metrics
-const dbSessionRate = document.getElementById('db-session-rate');
-const dbSessionFlaggedText = document.getElementById('db-session-flagged-text');
-const dbActivityBody = document.getElementById('dashboard-activity-body');
-const dashboardGoQueue = document.getElementById('dashboard-go-queue');
+let dbSessionRate = null;
+let dbSessionFlaggedText = null;
+let dbActivityBody = null;
+let dashboardGoQueue = null;
 
 // Review Queue elements
-const queueRefreshBtn = document.getElementById('queue-refresh-btn');
-const clearHistoryBtn = document.getElementById('clear-history-btn');
-const queueSearchInput = document.getElementById('queue-search-input');
-const queueFilterVerdict = document.getElementById('queue-filter-verdict');
-const queueTableBody = document.querySelector('#queue-view #history-log-body');
+let queueRefreshBtn = null;
+let clearHistoryBtn = null;
+let queueSearchInput = null;
+let queueFilterVerdict = null;
+let queueTableBody = null;
 
 // API documentation copy buttons
-const btnCopyCurl = document.getElementById('btn-copy-curl');
-const btnCopyJson = document.getElementById('btn-copy-json');
+let btnCopyCurl = null;
+let btnCopyJson = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Toast Notification Utility
 // ─────────────────────────────────────────────────────────────────────────────
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.toString().replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    );
+}
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -109,9 +116,10 @@ function showToast(message, type = 'info') {
     if (type === 'danger') iconClass = 'fa-circle-xmark';
     if (type === 'warning') iconClass = 'fa-triangle-exclamation';
 
+    // HTML escape message to prevent XSS (C-01)
     toast.innerHTML = `
         <i class="fa-solid ${iconClass}"></i>
-        <div class="toast-body">${message}</div>
+        <div class="toast-body">${escapeHTML(message)}</div>
     `;
 
     container.appendChild(toast);
@@ -123,6 +131,7 @@ function showToast(message, type = 'info') {
         }, 300);
     }, 4000);
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. App Shell View Switching
@@ -156,51 +165,7 @@ function switchView(targetViewId) {
     }
 }
 
-// Bind sidebar buttons
-sidebarLinks.forEach(link => {
-    link.addEventListener('click', () => {
-        const targetView = link.getAttribute('data-view');
-        switchView(targetView);
-    });
-});
-
-if (dashboardGoQueue) {
-    dashboardGoQueue.addEventListener('click', () => switchView('queue-view'));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Interactive Card Input Syncing
-// ─────────────────────────────────────────────────────────────────────────────
-if (inputCardholder) {
-    inputCardholder.addEventListener('input', (e) => {
-        const val = e.target.value.trim();
-        cardDisplayName.textContent = val ? val.toUpperCase() : "JOHN DOE";
-    });
-}
-
-if (inputCardNumber) {
-    inputCardNumber.addEventListener('input', (e) => {
-        // Formatter: space digits every 4 characters
-        let val = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-        let formatted = '';
-        for (let i = 0; i < val.length; i++) {
-            if (i > 0 && i % 4 === 0) formatted += ' ';
-            formatted += val[i];
-        }
-        e.target.value = formatted.substring(0, 19); // Max characters limit
-        
-        // Show masked/real card display
-        const displayVal = e.target.value.trim();
-        if (displayVal.length > 4) {
-            // Mask all but last 4 digits
-            let cardDigits = displayVal.replace(/\s+/g, '');
-            let masked = '•••• •••• •••• ' + cardDigits.substring(cardDigits.length - 4);
-            cardDisplayNumber.textContent = masked;
-        } else {
-            cardDisplayNumber.textContent = displayVal || "•••• •••• •••• 4242";
-        }
-    });
-}
+// Bind sidebar buttons and interactive inputs are now safe-bound in bindAllEvents() inside DOMContentLoaded
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Initialize PCA Feature Sliders
@@ -244,12 +209,7 @@ function initSliders() {
     }
 }
 
-// Collapsible advanced accordion toggle
-if (pcaToggle) {
-    pcaToggle.addEventListener('click', () => {
-        pcaSection.classList.toggle('collapsed');
-    });
-}
+// Collapsible advanced accordion toggle is safe-bound inside DOMContentLoaded
 
 function clearActivePresets() {
     document.querySelectorAll('.btn-preset').forEach(btn => {
@@ -348,203 +308,7 @@ async function loadPresets() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. Prediction Form Submit Handler
-// ─────────────────────────────────────────────────────────────────────────────
-analyzerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    inputAmount.style.borderColor = "";
-    inputTime.style.borderColor = "";
-    
-    const amountVal = parseFloat(inputAmount.value);
-    const timeVal = parseFloat(inputTime.value);
-    
-    let hasError = false;
-    if (isNaN(amountVal) || amountVal < 0) {
-        inputAmount.style.borderColor = "var(--danger)";
-        showToast("Amount must be a positive number.", "danger");
-        hasError = true;
-    }
-    if (isNaN(timeVal) || timeVal < 0) {
-        inputTime.style.borderColor = "var(--danger)";
-        showToast("Time must be a positive integer.", "danger");
-        hasError = true;
-    }
-    
-    if (hasError) return;
-    
-    submitBtn.disabled = true;
-    btnSpinner.style.display = 'block';
-    
-    // Package parameters alongside card metadata
-    const payload = {
-        Amount: amountVal,
-        Time: timeVal,
-        Card_Number: inputCardNumber.value || "4242 4242 4242 4242",
-        Cardholder: inputCardholder.value || "John Doe",
-        Merchant: inputMerchant.value || "Amazon Web Services",
-        Category: inputCategory.value || "Online Retail",
-        Country: inputCountry.value || "United States",
-        Device: inputDevice.value || "Mobile App",
-        threshold: currentThreshold
-    };
-
-    for (let i = 1; i <= 28; i++) {
-        payload[`V${i}`] = parseFloat(document.getElementById(`slider-v${i}`).value);
-    }
-
-    try {
-        const response = await fetch('/api/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errBody = await response.json();
-            throw new Error(errBody.error || "Server prediction failed");
-        }
-
-        currentPredictionData = await response.json();
-        
-        // Render verdict outputs
-        renderVerdict(currentPredictionData, payload);
-        renderSHAP(currentPredictionData, shapModelSelect.value);
-        
-        // Reload Stats & Queue logs
-        loadSessionStats();
-        loadHistoryQueue().then(() => {
-            renderDashboardCharts();
-        });
-
-        showToast("Ensemble evaluation completed successfully!", "success");
-
-    } catch (err) {
-        showToast("Prediction Error: " + err.message, "danger");
-        console.error("Prediction Error:", err);
-    } finally {
-        submitBtn.disabled = false;
-        btnSpinner.style.display = 'none';
-    }
-});
-
-// Setup Reset Button Click Handler
-if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-        inputCardholder.value = "John Doe";
-        cardDisplayName.textContent = "JOHN DOE";
-        inputCardNumber.value = "4242 4242 4242 4242";
-        cardDisplayNumber.textContent = "•••• •••• •••• 4242";
-        
-        inputAmount.value = "45.00";
-        inputTime.value = "10800";
-        updateTimeHelper(10800);
-        
-        inputMerchant.value = "Amazon Web Services";
-        inputCategory.value = "Online Retail";
-        inputCountry.value = "United States";
-        inputDevice.value = "Mobile App";
-
-        for (let i = 1; i <= 28; i++) {
-            const slider = document.getElementById(`slider-v${i}`);
-            const display = document.getElementById(`val-v${i}`);
-            if (slider && display) {
-                slider.value = "0";
-                display.textContent = "0.00";
-            }
-        }
-        
-        clearActivePresets();
-
-        verdictSection.classList.add('hidden');
-        currentPredictionData = null;
-        if (shapChartInstance) {
-            shapChartInstance.destroy();
-            shapChartInstance = null;
-        }
-
-        showToast("Analysis parameters reset to defaults.", "info");
-    });
-}
-
-// Setup Randomize Button Click Handler
-if (randomizeBtn) {
-    randomizeBtn.addEventListener('click', () => {
-        randomizeBtn.classList.add('pulse-anim');
-        setTimeout(() => randomizeBtn.classList.remove('pulse-anim'), 400);
-
-        // Random Uniform Amount: $0.10 to $2500
-        const randAmount = (Math.random() * 2499.9 + 0.1).toFixed(2);
-        inputAmount.value = randAmount;
-
-        // Random Uniform Time: 0 to 172800s
-        const randTime = Math.floor(Math.random() * 172801);
-        inputTime.value = randTime;
-        updateTimeHelper(randTime);
-
-        // Random Cardholder
-        const cardholders = ["Alex Morgan", "Elena Rostova", "Liam O'Connor", "Yuki Tanaka", "Kofi Mensah", "Sophia Bianchi"];
-        const chosenHolder = cardholders[Math.floor(Math.random() * cardholders.length)];
-        inputCardholder.value = chosenHolder;
-        cardDisplayName.textContent = chosenHolder.toUpperCase();
-
-        // Random Card Number
-        let cardNum = "4"; // Visa prefix
-        for (let i = 0; i < 15; i++) {
-            if (i > 0 && i % 4 === 3) cardNum += " ";
-            cardNum += Math.floor(Math.random() * 10);
-        }
-        inputCardNumber.value = cardNum;
-        cardDisplayNumber.textContent = '•••• •••• •••• ' + cardNum.substring(cardNum.length - 4);
-
-        // Random Merchant and categories
-        const merchants = {
-            "Online Retail": ["Amazon Web Services", "eBay Merchant", "Shopify Storefront", "Alibaba Express"],
-            "Food & Dining": ["McDonalds Restaurant", "Local Pizzeria", "Starbucks Store #940", "UberEats Delivery"],
-            "Travel & Transportation": ["Uber Ride LLC", "Airbnb Reservation", "Delta Airlines Flight", "Eurostar Train Ticketing"],
-            "Gas & Utilities": ["Chevron Gas Station", "Shell Petrol Pump", "National Power Grid", "Municipal Water Supply"],
-            "Entertainment": ["Netflix Subscription", "Steam Games Store", "Ticketmaster Outlet", "Spotify Premium Music"],
-            "Services & Support": ["Google Cloud Services", "Microsoft Azure Cloud", "Upwork Freelancer", "Github Copilot Sub"]
-        };
-
-        const categories = Object.keys(merchants);
-        const chosenCategory = categories[Math.floor(Math.random() * categories.length)];
-        const chosenMerchant = merchants[chosenCategory][Math.floor(Math.random() * merchants[chosenCategory].length)];
-
-        inputCategory.value = chosenCategory;
-        inputMerchant.value = chosenMerchant;
-
-        // Random Country
-        const countries = ["United States", "United Kingdom", "Germany", "France", "Japan", "Australia"];
-        inputCountry.value = countries[Math.floor(Math.random() * countries.length)];
-
-        // Random Device
-        const devices = ["Mobile App", "Web Browser", "POS Terminal", "Automated API"];
-        inputDevice.value = devices[Math.floor(Math.random() * devices.length)];
-
-        // Gaussian V1-V28 sliders
-        const boxMuller = () => {
-            let u = 0, v = 0;
-            while(u === 0) u = Math.random();
-            while(v === 0) v = Math.random();
-            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-        };
-
-        for (let i = 1; i <= 28; i++) {
-            const slider = document.getElementById(`slider-v${i}`);
-            const display = document.getElementById(`val-v${i}`);
-            if (slider && display) {
-                let val = boxMuller() * 1.5;
-                val = Math.max(-20, Math.min(20, val));
-                slider.value = val.toFixed(2);
-                display.textContent = parseFloat(val).toFixed(2);
-            }
-        }
-
-        clearActivePresets();
-        showToast("Randomized transaction card parameters loaded!", "success");
-    });
-}
+// Prediction submit, reset, and randomize event handlers are now safe-bound in bindAllEvents() inside DOMContentLoaded
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Render Verdict & Breakdown Dashboard
@@ -632,7 +396,8 @@ function renderVerdict(data, inputParams) {
         };
         requestAnimationFrame(animateText);
         
-        const isModelFraud = prob >= 0.5;
+        // Dynamic threshold evaluation (H-03)
+        const isModelFraud = prob >= currentThreshold;
         badgeEl.textContent = isModelFraud ? "FRAUD" : "LEGIT";
         badgeEl.className = "badge " + (isModelFraud ? "badge-danger" : "badge-legit");
     };
@@ -646,7 +411,8 @@ function renderVerdict(data, inputParams) {
         document.getElementById(`prob-${modelKey}`).textContent = probPct;
         document.getElementById(`mini-bar-${modelKey}`).style.width = `${prob * 100}%`;
         
-        const isModelFraud = prob >= 0.5;
+        // Dynamic threshold evaluation (H-03)
+        const isModelFraud = prob >= currentThreshold;
         const badgeEl = document.getElementById(`badge-table-${modelKey}`);
         badgeEl.textContent = isModelFraud ? "FRAUD" : "LEGITIMATE";
         badgeEl.className = "badge " + (isModelFraud ? "badge-danger" : "badge-legit");
@@ -660,11 +426,7 @@ function renderVerdict(data, inputParams) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. SHAP Chart Rendering
 // ─────────────────────────────────────────────────────────────────────────────
-shapModelSelect.addEventListener('change', (e) => {
-    if (currentPredictionData) {
-        renderSHAP(currentPredictionData, e.target.value);
-    }
-});
+// SHAP model select change event listener is safe-bound inside DOMContentLoaded
 
 function renderSHAP(data, modelKey) {
     const ctx = document.getElementById('shapChart').getContext('2d');
@@ -918,52 +680,62 @@ function renderDashboardActivity() {
     });
 }
 
-function loadTransactionIntoAnalyzer(item) {
-    // Populate form fields
-    const reconstructedParams = {
-        Amount: item.amount,
-        Time: item.txn_time,
-        Cardholder: item.cardholder,
-        Card_Number: item.card_number,
-        Merchant: item.merchant,
-        Category: item.category,
-        Country: item.country,
-        Device: item.device,
-        ...item.inputs
-    };
-
-    setFormValues(reconstructedParams);
+async function loadTransactionIntoAnalyzer(item) {
+    if (!item || !item.txn_id) return;
     
-    // Set response predictive outputs
-    const resultObj = {
-        ensemble: {
-            verdict: item.ensemble_verdict,
-            confidence: item.ensemble_confidence,
-            votes: item.ensemble_votes
-        },
-        models: {
-            rf: { name: "Random Forest", verdict: item.rf_prob >= 0.5 ? "FRAUD" : "LEGITIMATE", probability: item.rf_prob },
-            xgb: { name: "XGBoost", verdict: item.xgb_prob >= 0.5 ? "FRAUD" : "LEGITIMATE", probability: item.xgb_prob },
-            lgbm: { name: "LightGBM", verdict: item.lgbm_prob >= 0.5 ? "FRAUD" : "LEGITIMATE", probability: item.lgbm_prob }
-        },
-        shap: item.shap
-    };
+    try {
+        const res = await fetch(`/api/transaction/${item.txn_id}`);
+        if (!res.ok) throw new Error("Failed to load details from server.");
+        const fullItem = await res.json();
+        
+        // Populate form fields
+        const reconstructedParams = {
+            Amount: fullItem.amount,
+            Time: fullItem.txn_time,
+            Cardholder: fullItem.cardholder,
+            Card_Number: fullItem.card_number,
+            Merchant: fullItem.merchant,
+            Category: fullItem.category,
+            Country: fullItem.country,
+            Device: fullItem.device,
+            ...fullItem.inputs
+        };
 
-    currentPredictionData = resultObj;
+        setFormValues(reconstructedParams);
+        
+        // Set response predictive outputs
+        const resultObj = {
+            ensemble: {
+                verdict: fullItem.ensemble_verdict,
+                confidence: fullItem.ensemble_confidence,
+                votes: fullItem.ensemble_votes
+            },
+            models: {
+                rf: { name: "Random Forest", verdict: fullItem.rf_prob >= currentThreshold ? "FRAUD" : "LEGITIMATE", probability: fullItem.rf_prob },
+                xgb: { name: "XGBoost", verdict: fullItem.xgb_prob >= currentThreshold ? "FRAUD" : "LEGITIMATE", probability: fullItem.xgb_prob },
+                lgbm: { name: "LightGBM", verdict: fullItem.lgbm_prob >= currentThreshold ? "FRAUD" : "LEGITIMATE", probability: fullItem.lgbm_prob }
+            },
+            shap: fullItem.shap
+        };
 
-    // Switch view panel to analyzer
-    switchView('analyzer-view');
+        currentPredictionData = resultObj;
 
-    // Render results
-    renderVerdict(resultObj, reconstructedParams);
-    renderSHAP(resultObj, shapModelSelect.value);
+        // Switch view panel to analyzer
+        switchView('analyzer-view');
 
-    // Expand sliders grid
-    if (pcaSection.classList.contains('collapsed')) {
-        pcaSection.classList.remove('collapsed');
+        // Render results
+        renderVerdict(resultObj, reconstructedParams);
+        renderSHAP(resultObj, shapModelSelect.value);
+
+        // Expand sliders grid
+        if (pcaSection && pcaSection.classList.contains('collapsed')) {
+            pcaSection.classList.remove('collapsed');
+        }
+
+        showToast(`Loaded transaction context: ${fullItem.txn_id}`, "success");
+    } catch (err) {
+        showToast("Error inspecting transaction: " + err.message, "danger");
     }
-
-    showToast(`Loaded transaction context: ${item.txn_id}`, "success");
 }
 
 async function clearDatabase() {
@@ -1931,12 +1703,6 @@ function renderPRChart() {
     });
 }
 
-importanceModelSelect.addEventListener('change', (e) => {
-    if (statsData) {
-        renderFeatureImportanceChart(e.target.value);
-    }
-});
-
 function renderFeatureImportanceChart(modelKey) {
     const ctx = document.getElementById('importanceChart').getContext('2d');
     if (importanceChartInstance) importanceChartInstance.destroy();
@@ -1978,23 +1744,6 @@ function renderFeatureImportanceChart(modelKey) {
     });
 }
 
-// Binds metrics tabs
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        const targetId = btn.getAttribute('data-tab');
-        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-        document.getElementById(targetId).classList.add('active');
-
-        if (targetId === 'explainability-panel') {
-            loadHeatmapData();
-        }
-    });
-});
-
-// Helper: updates human-readable transaction time
 function updateTimeHelper(secondsVal) {
     if (!timeHelper) return;
     
@@ -2015,31 +1764,385 @@ function updateTimeHelper(secondsVal) {
     timeHelper.innerHTML = `<i class="fa-regular fa-clock"></i> Equivalent to: ${timeString.join(', ')} elapsed since dataset start.`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. API Copy Logic
-// ─────────────────────────────────────────────────────────────────────────────
-if (btnCopyCurl) {
-    btnCopyCurl.addEventListener('click', () => {
-        const text = document.getElementById('code-curl-content').textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("Copied cURL command to clipboard", "success");
+function bindAllEvents() {
+    // 1. Sidebar Link Navigation Controls
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const targetView = link.getAttribute('data-view');
+            switchView(targetView);
         });
     });
-}
 
-if (btnCopyJson) {
-    btnCopyJson.addEventListener('click', () => {
-        const text = document.getElementById('code-json-content').textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("Copied JSON response structure", "success");
+    if (dashboardGoQueue) {
+        dashboardGoQueue.addEventListener('click', () => switchView('queue-view'));
+    }
+
+    // 2. Interactive Card Input Syncing
+    if (inputCardholder) {
+        inputCardholder.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            cardDisplayName.textContent = val ? val.toUpperCase() : "JOHN DOE";
+        });
+    }
+
+    if (inputCardNumber) {
+        inputCardNumber.addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            let formatted = '';
+            for (let i = 0; i < val.length; i++) {
+                if (i > 0 && i % 4 === 0) formatted += ' ';
+                formatted += val[i];
+            }
+            e.target.value = formatted.substring(0, 19);
+            
+            const displayVal = e.target.value.trim();
+            if (displayVal.length > 4) {
+                let cardDigits = displayVal.replace(/\s+/g, '');
+                let masked = '•••• •••• •••• ' + cardDigits.substring(cardDigits.length - 4);
+                cardDisplayNumber.textContent = masked;
+            } else {
+                cardDisplayNumber.textContent = displayVal || "•••• •••• •••• 4242";
+            }
+        });
+    }
+
+    // 3. Collapsible Advanced Accordion Toggle
+    if (pcaToggle) {
+        pcaToggle.addEventListener('click', () => {
+            pcaSection.classList.toggle('collapsed');
+        });
+    }
+
+    // 4. Prediction Form Submit Handler
+    if (analyzerForm) {
+        analyzerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            inputAmount.style.borderColor = "";
+            inputTime.style.borderColor = "";
+            
+            const amountVal = parseFloat(inputAmount.value);
+            const timeVal = parseFloat(inputTime.value);
+            
+            let hasError = false;
+            if (isNaN(amountVal) || amountVal < 0) {
+                inputAmount.style.borderColor = "var(--danger)";
+                showToast("Amount must be a positive number.", "danger");
+                hasError = true;
+            }
+            if (isNaN(timeVal) || timeVal < 0) {
+                inputTime.style.borderColor = "var(--danger)";
+                showToast("Time must be a positive integer.", "danger");
+                hasError = true;
+            }
+            
+            if (hasError) return;
+            
+            submitBtn.disabled = true;
+            btnSpinner.style.display = 'block';
+            
+            const payload = {
+                Amount: amountVal,
+                Time: timeVal,
+                Card_Number: inputCardNumber.value || "4242 4242 4242 4242",
+                Cardholder: inputCardholder.value || "John Doe",
+                Merchant: inputMerchant.value || "Amazon Web Services",
+                Category: inputCategory.value || "Online Retail",
+                Country: inputCountry.value || "United States",
+                Device: inputDevice.value || "Mobile App",
+                threshold: currentThreshold
+            };
+
+            for (let i = 1; i <= 28; i++) {
+                payload[`V${i}`] = parseFloat(document.getElementById(`slider-v${i}`).value);
+            }
+
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errBody = await response.json();
+                    throw new Error(errBody.error || "Server prediction failed");
+                }
+
+                currentPredictionData = await response.json();
+                
+                renderVerdict(currentPredictionData, payload);
+                renderSHAP(currentPredictionData, shapModelSelect.value);
+                
+                loadSessionStats();
+                loadHistoryQueue().then(() => {
+                    renderDashboardCharts();
+                });
+
+                showToast("Ensemble evaluation completed successfully!", "success");
+
+            } catch (err) {
+                showToast("Prediction Error: " + err.message, "danger");
+                console.error("Prediction Error:", err);
+            } finally {
+                submitBtn.disabled = false;
+                btnSpinner.style.display = 'none';
+            }
+        });
+    }
+
+    // 5. Reset Button Click Handler
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            inputCardholder.value = "John Doe";
+            cardDisplayName.textContent = "JOHN DOE";
+            inputCardNumber.value = "4242 4242 4242 4242";
+            cardDisplayNumber.textContent = "•••• •••• •••• 4242";
+            
+            inputAmount.value = "45.00";
+            inputTime.value = "10800";
+            updateTimeHelper(10800);
+            
+            inputMerchant.value = "Amazon Web Services";
+            inputCategory.value = "Online Retail";
+            inputCountry.value = "United States";
+            inputDevice.value = "Mobile App";
+
+            for (let i = 1; i <= 28; i++) {
+                const slider = document.getElementById(`slider-v${i}`);
+                const display = document.getElementById(`val-v${i}`);
+                if (slider && display) {
+                    slider.value = "0";
+                    display.textContent = "0.00";
+                }
+            }
+            
+            clearActivePresets();
+
+            verdictSection.classList.add('hidden');
+            currentPredictionData = null;
+            if (shapChartInstance) {
+                shapChartInstance.destroy();
+                shapChartInstance = null;
+            }
+
+            showToast("Analysis parameters reset to defaults.", "info");
+        });
+    }
+
+    // 6. Randomize Button Click Handler
+    if (randomizeBtn) {
+        randomizeBtn.addEventListener('click', () => {
+            randomizeBtn.classList.add('pulse-anim');
+            setTimeout(() => randomizeBtn.classList.remove('pulse-anim'), 400);
+
+            const randAmount = (Math.random() * 2499.9 + 0.1).toFixed(2);
+            inputAmount.value = randAmount;
+
+            const randTime = Math.floor(Math.random() * 172801);
+            inputTime.value = randTime;
+            updateTimeHelper(randTime);
+
+            const cardholders = ["Alex Morgan", "Elena Rostova", "Liam O'Connor", "Yuki Tanaka", "Kofi Mensah", "Sophia Bianchi"];
+            const chosenHolder = cardholders[Math.floor(Math.random() * cardholders.length)];
+            inputCardholder.value = chosenHolder;
+            cardDisplayName.textContent = chosenHolder.toUpperCase();
+
+            let cardNum = "4";
+            for (let i = 0; i < 15; i++) {
+                if (i > 0 && i % 4 === 3) cardNum += " ";
+                cardNum += Math.floor(Math.random() * 10);
+            }
+            inputCardNumber.value = cardNum;
+            cardDisplayNumber.textContent = '•••• •••• •••• ' + cardNum.substring(cardNum.length - 4);
+
+            const merchants = {
+                "Online Retail": ["Amazon Web Services", "eBay Merchant", "Shopify Storefront", "Alibaba Express"],
+                "Food & Dining": ["McDonalds Restaurant", "Local Pizzeria", "Starbucks Store #940", "UberEats Delivery"],
+                "Travel & Transportation": ["Uber Ride LLC", "Airbnb Reservation", "Delta Airlines Flight", "Eurostar Train Ticketing"],
+                "Gas & Utilities": ["Chevron Gas Station", "Shell Petrol Pump", "National Power Grid", "Municipal Water Supply"],
+                "Entertainment": ["Netflix Subscription", "Steam Games Store", "Ticketmaster Outlet", "Spotify Premium Music"],
+                "Services & Support": ["Google Cloud Services", "Microsoft Azure Cloud", "Upwork Freelancer", "Github Copilot Sub"]
+            };
+
+            const categories = Object.keys(merchants);
+            const chosenCategory = categories[Math.floor(Math.random() * categories.length)];
+            const chosenMerchant = merchants[chosenCategory][Math.floor(Math.random() * merchants[chosenCategory].length)];
+
+            inputCategory.value = chosenCategory;
+            inputMerchant.value = chosenMerchant;
+
+            const countries = ["United States", "United Kingdom", "Germany", "France", "Japan", "Australia"];
+            inputCountry.value = countries[Math.floor(Math.random() * countries.length)];
+
+            const devices = ["Mobile App", "Web Browser", "POS Terminal", "Automated API"];
+            inputDevice.value = devices[Math.floor(Math.random() * devices.length)];
+
+            const boxMuller = () => {
+                let u = 0, v = 0;
+                while(u === 0) u = Math.random();
+                while(v === 0) v = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            };
+
+            for (let i = 1; i <= 28; i++) {
+                const slider = document.getElementById(`slider-v${i}`);
+                const display = document.getElementById(`val-v${i}`);
+                if (slider && display) {
+                    let val = boxMuller() * 1.5;
+                    val = Math.max(-20, Math.min(20, val));
+                    slider.value = val.toFixed(2);
+                    display.textContent = parseFloat(val).toFixed(2);
+                }
+            }
+
+            clearActivePresets();
+            showToast("Randomized transaction card parameters loaded!", "success");
+        });
+    }
+
+    // 7. SHAP model select change
+    if (shapModelSelect) {
+        shapModelSelect.addEventListener('change', (e) => {
+            if (currentPredictionData) {
+                renderSHAP(currentPredictionData, e.target.value);
+            }
+        });
+    }
+
+    // 8. Queue Table Filters
+    if (queueSearchInput) {
+        queueSearchInput.addEventListener('input', renderQueueTable);
+    }
+    if (queueFilterVerdict) {
+        queueFilterVerdict.addEventListener('change', renderQueueTable);
+    }
+    if (queueRefreshBtn) {
+        queueRefreshBtn.addEventListener('click', loadHistoryQueue);
+    }
+
+    // 9. Metrics View Selector
+    if (importanceModelSelect) {
+        importanceModelSelect.addEventListener('change', (e) => {
+            if (statsData) {
+                renderFeatureImportanceChart(e.target.value);
+            }
+        });
+    }
+
+    // 10. Metrics tabs navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const targetId = btn.getAttribute('data-tab');
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            document.getElementById(targetId).classList.add('active');
+
+            if (targetId === 'explainability-panel') {
+                loadHeatmapData();
+            }
         });
     });
+
+    // 11. API Command copies
+    if (btnCopyCurl) {
+        btnCopyCurl.addEventListener('click', () => {
+            const text = document.getElementById('code-curl-content').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("Copied cURL command to clipboard", "success");
+            });
+        });
+    }
+
+    if (btnCopyJson) {
+        btnCopyJson.addEventListener('click', () => {
+            const text = document.getElementById('code-json-content').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("Copied JSON response structure", "success");
+            });
+        });
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM Content Loaded Initializer
 // ─────────────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize DOM Elements safely inside DOMContentLoaded (H-04)
+    slidersColLeft = document.getElementById('sliders-col-left');
+    slidersColRight = document.getElementById('sliders-col-right');
+    pcaToggle = document.getElementById('pca-toggle');
+    pcaSection = document.querySelector('.pca-section');
+
+    analyzerForm = document.getElementById('analyzer-form');
+    submitBtn = document.getElementById('submit-btn');
+    resetBtn = document.getElementById('reset-btn');
+    randomizeBtn = document.getElementById('randomize-btn');
+    btnSpinner = document.getElementById('btn-spinner');
+
+    inputCardholder = document.getElementById('input-cardholder');
+    inputCardNumber = document.getElementById('input-card-number');
+    inputTime = document.getElementById('input-time');
+    inputAmount = document.getElementById('input-amount');
+    inputMerchant = document.getElementById('input-merchant');
+    inputCategory = document.getElementById('input-category');
+    inputCountry = document.getElementById('input-country');
+    inputDevice = document.getElementById('input-device');
+    timeHelper = document.getElementById('time-helper');
+
+    cardDisplayNumber = document.getElementById('card-display-number');
+    cardDisplayName = document.getElementById('card-display-name');
+
+    verdictSection = document.getElementById('verdict-section');
+    verdictBannerCard = document.getElementById('verdict-banner-card');
+    ensembleBadge = document.getElementById('ensemble-badge');
+    ensembleVerdictTitle = document.getElementById('ensemble-verdict-title');
+    ensembleConfidencePercent = document.getElementById('ensemble-confidence-percent');
+    ensembleVotes = document.getElementById('ensemble-votes');
+    riskThermometerBar = document.getElementById('risk-thermometer-bar');
+    riskValueText = document.getElementById('risk-value-text');
+
+    gaugeRf = document.getElementById('gauge-rf');
+    gaugeXgb = document.getElementById('gauge-xgb');
+    gaugeLgbm = document.getElementById('gauge-lgbm');
+    gaugeValRf = document.getElementById('gauge-val-rf');
+    gaugeValXgb = document.getElementById('gauge-val-xgb');
+    gaugeValLgbm = document.getElementById('gauge-val-lgbm');
+    badgeRf = document.getElementById('badge-rf');
+    badgeXgb = document.getElementById('badge-xgb');
+    badgeLgbm = document.getElementById('badge-lgbm');
+
+    shapSection = document.getElementById('shap-section');
+    shapModelSelect = document.getElementById('shap-model-select');
+    shapSummaryText = document.getElementById('shap-summary-text');
+
+    metricsTableBody = document.getElementById('metrics-table-body');
+    importanceModelSelect = document.getElementById('importance-model-select');
+
+    sidebarLinks = document.querySelectorAll('.sidebar-link');
+    viewPanels = document.querySelectorAll('.view-panel');
+    pageTitle = document.getElementById('page-title');
+
+    pillAnalyzed = document.getElementById('pill-analyzed');
+    pillFlagged = document.getElementById('pill-flagged');
+    pillFraudRate = document.getElementById('pill-fraud-rate');
+
+    dbSessionRate = document.getElementById('db-session-rate');
+    dbSessionFlaggedText = document.getElementById('db-session-flagged-text');
+    dbActivityBody = document.getElementById('dashboard-activity-body');
+    dashboardGoQueue = document.getElementById('dashboard-go-queue');
+
+    queueRefreshBtn = document.getElementById('queue-refresh-btn');
+    clearHistoryBtn = document.getElementById('clear-history-btn');
+    queueSearchInput = document.getElementById('queue-search-input');
+    queueFilterVerdict = document.getElementById('queue-filter-verdict');
+    queueTableBody = document.querySelector('#queue-view #history-log-body');
+
+    btnCopyCurl = document.getElementById('btn-copy-curl');
+    btnCopyJson = document.getElementById('btn-copy-json');
+
     // 1. Setup UI Slider fields
     initSliders();
     
@@ -2116,11 +2219,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 7. Initialize Sub-modules
+    // 7. Bind All Events (H-04)
+    bindAllEvents();
+
+    // 8. Initialize Sub-modules
     initBatchModeListeners();
     initOperatorSettings();
 
-    // 8. Bind Live Feed simulator toggle button (CRITICAL FIX)
+    // 9. Bind Live Feed simulator toggle button
     const simToggleBtn = document.getElementById('btn-simulator-toggle');
     if (simToggleBtn) {
         simToggleBtn.addEventListener('click', toggleSimulatorFeed);

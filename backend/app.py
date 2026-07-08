@@ -15,9 +15,10 @@ import joblib
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import shap
+import uuid
 
 app = Flask(__name__, static_folder='../frontend')
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}})
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
 DB_PATH = os.path.join(os.path.dirname(__file__), 'fraud_detection.db')
@@ -141,13 +142,13 @@ def predict():
         if missing_features:
             return jsonify({"error": f"Missing features: {missing_features}"}), 400
 
-        # Extract extra card metadata for industry-level database records
-        card_number = data.get('Card_Number', '**** **** **** 4242')
-        cardholder = data.get('Cardholder', 'John Doe')
-        merchant = data.get('Merchant', 'Unknown Merchant')
-        category = data.get('Category', 'Online')
-        country = data.get('Country', 'US')
-        device = data.get('Device', 'Web Browser')
+        # Validate string inputs and sanitize max length (M-05)
+        card_number = str(data.get('Card_Number', '**** **** **** 4242'))[:19]
+        cardholder = str(data.get('Cardholder', 'John Doe'))[:100]
+        merchant = str(data.get('Merchant', 'Unknown Merchant'))[:100]
+        category = str(data.get('Category', 'Online'))[:50]
+        country = str(data.get('Country', 'US'))[:50]
+        device = str(data.get('Device', 'Web Browser'))[:50]
 
         # Build raw DataFrame in exact training order
         raw_df = pd.DataFrame([data], columns=feature_names)
@@ -191,8 +192,6 @@ def predict():
                     sv = explainer.shap_values(scaled_df)
                     
                     # Handle binary classification shap output differences across models
-                    # LightGBM/XGBoost returns array of shape (1, n_features) or (n_features,)
-                    # Random Forest returns list of 2 arrays (negative, positive class)
                     if isinstance(sv, list):
                         # Use positive class SHAP values
                         row_sv = sv[1][0]
@@ -224,10 +223,11 @@ def predict():
             else:
                 shap_values_dict[key] = []
 
-        # Generate custom transaction ID
-        txn_id = f"TXN-{random.randint(100000, 999999)}"
+        # Generate unique transaction ID using UUID (H-01 / M-04)
+        txn_id = f"TXN-{uuid.uuid4().hex[:8].upper()}"
 
-        # Save record to SQLite database for audit trail
+        # Save record to SQLite database for audit trail (H-02)
+        conn = None
         try:
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
@@ -246,9 +246,11 @@ def predict():
                 json.dumps(data), json.dumps(shap_values_dict)
             ))
             conn.commit()
-            conn.close()
         except Exception as db_err:
             print(f"[DB ERROR] Failed to save transaction record: {db_err}")
+        finally:
+            if conn:
+                conn.close()
 
         response = {
             "txn_id": txn_id,
@@ -272,17 +274,65 @@ def predict():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        # Prevent traceback information leak to client (C-02)
+        return jsonify({"error": "An internal server error occurred during prediction."}), 500
 
-@app.route('/api/history', methods=['GET'])
-def get_history():
+@app.route('/api/transaction/<txn_id>', methods=['GET'])
+def get_transaction(txn_id):
+    conn = None
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM transactions ORDER BY timestamp DESC')
+        cursor.execute('SELECT * FROM transactions WHERE txn_id = ?', (txn_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Transaction not found."}), 404
+            
+        return jsonify({
+            "id": row["id"],
+            "txn_id": row["txn_id"],
+            "timestamp": row["timestamp"],
+            "card_number": row["card_number"],
+            "cardholder": row["cardholder"],
+            "amount": row["amount"],
+            "txn_time": row["txn_time"],
+            "merchant": row["merchant"],
+            "category": row["category"],
+            "country": row["country"],
+            "device": row["device"],
+            "ensemble_verdict": row["ensemble_verdict"],
+            "ensemble_confidence": row["ensemble_confidence"],
+            "ensemble_votes": row["ensemble_votes"],
+            "rf_prob": row["rf_prob"],
+            "xgb_prob": row["xgb_prob"],
+            "lgbm_prob": row["lgbm_prob"],
+            "inputs": json.loads(row["inputs_json"]) if row["inputs_json"] else {},
+            "shap": json.loads(row["shap_json"]) if row["shap_json"] else {}
+        })
+    except Exception as e:
+        return jsonify({"error": "Failed to load transaction details."}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        # Optimization (M-06): Exclude bulky inputs_json and shap_json from default history requests
+        cursor.execute('''
+            SELECT id, txn_id, timestamp, card_number, cardholder, amount, 
+                   txn_time, merchant, category, country, device, 
+                   ensemble_verdict, ensemble_confidence, ensemble_votes, 
+                   rf_prob, xgb_prob, lgbm_prob 
+            FROM transactions 
+            ORDER BY timestamp DESC
+        ''')
         rows = cursor.fetchall()
-        conn.close()
         
         history = []
         for r in rows:
@@ -304,27 +354,39 @@ def get_history():
                 "rf_prob": r["rf_prob"],
                 "xgb_prob": r["xgb_prob"],
                 "lgbm_prob": r["lgbm_prob"],
-                "inputs": json.loads(r["inputs_json"]),
-                "shap": json.loads(r["shap_json"])
+                "inputs": {},  # Lazy loaded if inspected
+                "shap": {}     # Lazy loaded if inspected
             })
         return jsonify(history)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to fetch transaction history ledger."}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/history/clear', methods=['POST'])
 def clear_history():
+    # Simple Localhost Validation for Clear Action (M-02)
+    origin_ip = request.remote_addr
+    if origin_ip not in ['127.0.0.1', 'localhost', '::1']:
+        return jsonify({"error": "Clear action is restricted to local operators."}), 403
+
+    conn = None
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute('DELETE FROM transactions')
         conn.commit()
-        conn.close()
         return jsonify({"status": "success", "message": "History cleared"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to clear transaction database."}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/session-stats', methods=['GET'])
 def get_session_stats():
+    conn = None
     try:
         threshold = float(request.args.get('threshold', 0.5))
         conn = sqlite3.connect(DB_PATH)
@@ -348,8 +410,6 @@ def get_session_stats():
         # Fraud rate
         fraud_rate = (fraud_count / total_count * 100) if total_count > 0 else 0.0
         
-        conn.close()
-        
         return jsonify({
             "total_analyzed": total_count,
             "fraud_flagged": fraud_count,
@@ -357,7 +417,10 @@ def get_session_stats():
             "ensemble_auc": 0.981
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to load session statistics."}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/predict/batch', methods=['POST'])
 def predict_batch():
@@ -371,6 +434,10 @@ def predict_batch():
             
         txns = req_data["transactions"]
         threshold = float(req_data.get("threshold", 0.5))
+        
+        # Enforce Batch Limit to prevent DoS (C-04)
+        if len(txns) > 500:
+            return jsonify({"error": "Batch size exceeds maximum limit of 500 transactions."}), 400
         
         if not txns:
             return jsonify({
@@ -388,12 +455,13 @@ def predict_batch():
         metadata_list = []
         
         for idx, item in enumerate(txns):
-            card_number = item.get('Card_Number', '**** **** **** 4242')
-            cardholder = item.get('Cardholder', f'Customer #{idx+1}')
-            merchant = item.get('Merchant', 'Unknown Merchant')
-            category = item.get('Category', 'Online')
-            country = item.get('Country', 'US')
-            device = item.get('Device', 'Web Browser')
+            # Limit lengths to prevent memory attacks (M-05)
+            card_number = str(item.get('Card_Number', '**** **** **** 4242'))[:19]
+            cardholder = str(item.get('Cardholder', f'Customer #{idx+1}'))[:100]
+            merchant = str(item.get('Merchant', 'Unknown Merchant'))[:100]
+            category = str(item.get('Category', 'Online'))[:50]
+            country = str(item.get('Country', 'US'))[:50]
+            device = str(item.get('Device', 'Web Browser'))[:50]
             
             metadata_list.append({
                 "card_number": card_number,
@@ -422,62 +490,66 @@ def predict_batch():
         lgbm_probs = models['lgbm'].predict_proba(scaled_df)[:, 1]
         
         results = []
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        total_fraud = 0
-        total_legit = 0
-        
-        for i in range(len(txns)):
-            p_rf = float(rf_probs[i])
-            p_xgb = float(xgb_probs[i])
-            p_lgb = float(lgbm_probs[i])
+        conn = None
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
             
-            votes = 0
-            if p_rf >= threshold: votes += 1
-            if p_xgb >= threshold: votes += 1
-            if p_lgb >= threshold: votes += 1
+            total_fraud = 0
+            total_legit = 0
             
-            avg_prob = (p_rf + p_xgb + p_lgb) / 3
-            ensemble_verdict = "FRAUD" if votes >= 2 else "LEGITIMATE"
-            ensemble_conf = avg_prob if ensemble_verdict == "FRAUD" else 1.0 - avg_prob
-            
-            if ensemble_verdict == "FRAUD":
-                total_fraud += 1
-            else:
-                total_legit += 1
+            for i in range(len(txns)):
+                p_rf = float(rf_probs[i])
+                p_xgb = float(xgb_probs[i])
+                p_lgb = float(lgbm_probs[i])
                 
-            txn_id = f"TXN-{random.randint(100000, 999999)}"
-            meta = metadata_list[i]
-            data_raw = batch_inputs[i]
-            
-            cursor.execute('''
-                INSERT INTO transactions (
-                    txn_id, card_number, cardholder, amount, txn_time,
-                    merchant, category, country, device,
-                    ensemble_verdict, ensemble_confidence, ensemble_votes,
-                    rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                txn_id, meta["card_number"], meta["cardholder"], data_raw['Amount'], int(data_raw['Time']),
-                meta["merchant"], meta["category"], meta["country"], meta["device"],
-                ensemble_verdict, float(ensemble_conf), int(votes),
-                p_rf, p_xgb, p_lgb,
-                json.dumps(txns[i]), json.dumps({})
-            ))
-            
-            results.append({
-                "txn_id": txn_id,
-                "cardholder": meta["cardholder"],
-                "merchant": meta["merchant"],
-                "amount": data_raw['Amount'],
-                "verdict": ensemble_verdict,
-                "confidence": round(ensemble_conf, 4),
-                "votes": votes
-            })
-            
-        conn.commit()
-        conn.close()
+                votes = 0
+                if p_rf >= threshold: votes += 1
+                if p_xgb >= threshold: votes += 1
+                if p_lgb >= threshold: votes += 1
+                
+                avg_prob = (p_rf + p_xgb + p_lgb) / 3
+                ensemble_verdict = "FRAUD" if votes >= 2 else "LEGITIMATE"
+                ensemble_conf = avg_prob if ensemble_verdict == "FRAUD" else 1.0 - avg_prob
+                
+                if ensemble_verdict == "FRAUD":
+                    total_fraud += 1
+                else:
+                    total_legit += 1
+                    
+                txn_id = f"TXN-{uuid.uuid4().hex[:8].upper()}"
+                meta = metadata_list[i]
+                data_raw = batch_inputs[i]
+                
+                cursor.execute('''
+                    INSERT INTO transactions (
+                        txn_id, card_number, cardholder, amount, txn_time,
+                        merchant, category, country, device,
+                        ensemble_verdict, ensemble_confidence, ensemble_votes,
+                        rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    txn_id, meta["card_number"], meta["cardholder"], data_raw['Amount'], int(data_raw['Time']),
+                    meta["merchant"], meta["category"], meta["country"], meta["device"],
+                    ensemble_verdict, float(ensemble_conf), int(votes),
+                    p_rf, p_xgb, p_lgb,
+                    json.dumps(txns[i]), json.dumps({})
+                ))
+                
+                results.append({
+                    "txn_id": txn_id,
+                    "cardholder": meta["cardholder"],
+                    "merchant": meta["merchant"],
+                    "amount": data_raw['Amount'],
+                    "verdict": ensemble_verdict,
+                    "confidence": round(ensemble_conf, 4),
+                    "votes": votes
+                })
+                
+            conn.commit()
+        finally:
+            if conn:
+                conn.close()
         
         return jsonify({
             "results": results,
@@ -491,7 +563,7 @@ def predict_batch():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred during batch processing."}), 500
 
 @app.route('/api/analytics', methods=['GET'])
 def get_analytics():
@@ -568,5 +640,6 @@ def get_global_explainability():
 if __name__ == '__main__':
     init_db()
     load_resources()
-    print("[RUN] Starting Flask server on http://localhost:5000")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("[RUN] Starting Flask server on http://127.0.0.1:5000")
+    # Bind to local interface and disable debug debugger (C-03)
+    app.run(host='127.0.0.1', port=5000, debug=False)
