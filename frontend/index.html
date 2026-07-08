@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCFD Radar - Credit Card Fraud Detection Platform</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-shield-halved logo-icon"></i>
+                    <span class="logo-text">CCFD <span class="logo-sub">Radar</span></span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="sidebar-link active" data-view="dashboard-view">
+                    <i class="fa-solid fa-house"></i> <span>Dashboard</span>
+                </button>
+                <button class="sidebar-link" data-view="analyzer-view">
+                    <i class="fa-solid fa-credit-card"></i> <span>Analyze Transaction</span>
+                </button>
+                <button class="sidebar-link" data-view="performance-view">
+                    <i class="fa-solid fa-chart-column"></i> <span>Model Performance</span>
+                </button>
+                <button class="sidebar-link" data-view="queue-view">
+                    <i class="fa-solid fa-list-check"></i> <span>Review Queue</span>
+                </button>
+                <button class="sidebar-link" data-view="api-view">
+                    <i class="fa-solid fa-code"></i> <span>Developer API Docs</span>
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="operator-profile">
+                    <div class="operator-avatar">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div class="operator-info">
+                        <span class="operator-name">Operator #402</span>
+                        <span class="operator-role">Risk Analyst</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Layout Container -->
+        <div class="main-layout-container">
+            <!-- Top Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <h1 id="page-title">Dashboard Overview</h1>
+                </div>
+                <div class="topbar-right">
+                    <!-- Sensitivity Threshold Tuner -->
+                    <div class="threshold-tuner">
+                        <span class="threshold-label" title="Decision Threshold tuner. Lower threshold flags fraud more aggressively."><i class="fa-solid fa-sliders"></i> Sensitivity Alert: <span id="threshold-display-val">50%</span></span>
+                        <input type="range" id="sensitivity-threshold-slider" min="30" max="90" step="5" value="50">
+                    </div>
+                    <!-- Session Counters -->
+                    <div class="session-stats-bar">
+                        <div class="stat-pill">
+                            <span class="pill-label"><i class="fa-solid fa-receipt"></i> Analyzed:</span>
+                            <span class="pill-value" id="pill-analyzed">0</span>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="pill-label"><i class="fa-solid fa-triangle-exclamation"></i> Flagged:</span>
+                            <span class="pill-value text-danger" id="pill-flagged">0</span>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="pill-label"><i class="fa-solid fa-percent"></i> Fraud Rate:</span>
+                            <span class="pill-value text-warning" id="pill-fraud-rate">0.0%</span>
+                        </div>
+                        <div class="stat-pill status-pill">
+                            <span class="status-indicator"></span>
+                            <span class="pill-value text-success">SYSTEM ONLINE</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <main class="content-body">
+                
+                <!-- 1. DASHBOARD VIEW -->
+                <div id="dashboard-view" class="view-panel active-view">
+                    <!-- Dashboard Cards Grid -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card bg-blue-glow">
+                            <div class="kpi-header">
+                                <span class="kpi-label">Transactions Scanned</span>
+                                <div class="kpi-icon text-blue"><i class="fa-solid fa-database"></i></div>
+                            </div>
+                            <div class="kpi-val" id="db-scanned">284,807</div>
+                            <div class="kpi-footer">
+                                <span class="trend-up"><i class="fa-solid fa-arrow-up"></i> +12% today</span>
+                                <span class="label-sub">Historical baseline dataset</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card bg-red-glow">
+                            <div class="kpi-header">
+                                <span class="kpi-label">Fraud Incidents</span>
+                                <div class="kpi-icon text-danger"><i class="fa-solid fa-circle-exclamation"></i></div>
+                            </div>
+                            <div class="kpi-val" id="db-fraud">492</div>
+                            <div class="kpi-footer">
+                                <span class="trend-neutral">0.17% overall rate</span>
+                                <span class="label-sub">High-imbalance reference</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card bg-yellow-glow">
+                            <div class="kpi-header">
+                                <span class="kpi-label">Active Session Fraud Rate</span>
+                                <div class="kpi-icon text-warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            </div>
+                            <div class="kpi-val" id="db-session-rate">0.00%</div>
+                            <div class="kpi-footer">
+                                <span class="trend-down" id="db-session-flagged-text"><i class="fa-solid fa-flag"></i> 0 of 0 cases flagged</span>
+                                <span class="label-sub">Current reviewer run</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card bg-green-glow">
+                            <div class="kpi-header">
+                                <span class="kpi-label">Ensemble AUC Score</span>
+                                <div class="kpi-icon text-success"><i class="fa-solid fa-shield-halved"></i></div>
+                            </div>
+                            <div class="kpi-val">98.1%</div>
+                            <div class="kpi-footer">
+                                <span class="trend-up"><i class="fa-solid fa-circle-check"></i> High Precision</span>
+                                <span class="label-sub">Consensus RF + XGB + LGBM</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Charts Row -->
+                    <div class="dashboard-charts-row">
+                        <div class="card chart-card flex-large">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-chart-line text-blue"></i> Transaction & Risk Activity Trend</h3>
+                                <p>Hourly volume and flagged fraud distribution</p>
+                            </div>
+                            <div class="chart-canvas-container">
+                                <canvas id="dashboardTrendChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card chart-card flex-small">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-chart-pie text-success"></i> Verdict Distribution</h3>
+                                <p>Ensemble resolution statistics</p>
+                            </div>
+                            <div class="chart-canvas-container">
+                                <canvas id="dashboardVerdictChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card chart-card flex-medium">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-chart-bar text-warning"></i> Amount Risk Histogram</h3>
+                                <p>Flagged fraud count by transaction value tier</p>
+                            </div>
+                            <div class="chart-canvas-container">
+                                <canvas id="dashboardAmountChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Sections Split -->
+                    <div class="dashboard-split-row">
+                        <!-- Recent Activity List -->
+                        <div class="card recent-activity-card">
+                            <div class="card-header flex-header">
+                                <div>
+                                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Session Activity</h3>
+                                    <p>Live session audit log of predictions saved in local database.</p>
+                                </div>
+                                <div class="btn-group-row" style="display: flex; gap: 0.5rem;">
+                                    <button type="button" class="btn btn-secondary btn-sm btn-simulator" id="btn-simulator-toggle">
+                                        <i class="fa-solid fa-play"></i> Start Live Feed
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="dashboard-go-queue">
+                                        View Full Queue <i class="fa-solid fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="activity-list-container">
+                                <table class="activity-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>Merchant / User</th>
+                                            <th>Amount</th>
+                                            <th>Risk Score</th>
+                                            <th>Verdict</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-activity-body">
+                                        <tr>
+                                            <td colspan="6" class="activity-placeholder">No transactions analyzed in this session yet.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- System Status Monitor -->
+                        <div class="card system-monitor-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-circle-nodes"></i> Model Server Status</h3>
+                                <p>Operational health check of production ML classifiers.</p>
+                            </div>
+                            <div class="monitor-list">
+                                <div class="monitor-item">
+                                    <div class="monitor-info">
+                                        <div class="monitor-title">
+                                            <strong>Random Forest Classifier</strong>
+                                            <span class="auc-label">AUC: 0.9770</span>
+                                        </div>
+                                        <span class="badge badge-success">ONLINE</span>
+                                    </div>
+                                    <div class="monitor-latency">Latency: <span class="text-success">&lt; 4ms</span></div>
+                                </div>
+                                <div class="monitor-item">
+                                    <div class="monitor-info">
+                                        <div class="monitor-title">
+                                            <strong>XGBoost Model</strong>
+                                            <span class="auc-label">AUC: 0.9814</span>
+                                        </div>
+                                        <span class="badge badge-success">ONLINE</span>
+                                    </div>
+                                    <div class="monitor-latency">Latency: <span class="text-success">&lt; 2ms</span></div>
+                                </div>
+                                <div class="monitor-item">
+                                    <div class="monitor-info">
+                                        <div class="monitor-title">
+                                            <strong>LightGBM Model</strong>
+                                            <span class="auc-label">AUC: 0.9806</span>
+                                        </div>
+                                        <span class="badge badge-success">ONLINE</span>
+                                    </div>
+                                    <div class="monitor-latency">Latency: <span class="text-success">&lt; 2ms</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ANALYZE VIEW -->
+                <div id="analyzer-view" class="view-panel">
+                    <div class="card analyzer-card">
+                        <div class="card-header flex-header">
+                            <div>
+                                <h2><i class="fa-solid fa-calculator"></i> Transaction Analysis Terminal</h2>
+                                <p>Submit payment terminal inputs or select pre-trained test scenarios below.</p>
+                            </div>
+                            <!-- Presets Loader -->
+                            <div class="presets-wrapper">
+                                <span class="presets-label"><i class="fa-solid fa-seedling"></i> Scenario:</span>
+                                <div id="legit-presets-row" class="btn-group-row">
+                                    <button class="btn btn-preset legit" data-type="legit" data-index="0">Legit #1</button>
+                                    <button class="btn btn-preset legit" data-type="legit" data-index="1">Legit #2</button>
+                                    <button class="btn btn-preset legit" data-type="legit" data-index="2">Legit #3</button>
+                                </div>
+                                <div id="fraud-presets-row" class="btn-group-row">
+                                    <button class="btn btn-preset fraud" data-type="fraud" data-index="0">Fraud #1</button>
+                                    <button class="btn btn-preset fraud" data-type="fraud" data-index="1">Fraud #2</button>
+                                    <button class="btn btn-preset fraud" data-type="fraud" data-index="2">Fraud #3</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- View mode sub-navigation tabs -->
+                        <div class="analyzer-mode-tabs">
+                            <button type="button" class="mode-tab active" data-mode="single">
+                                <i class="fa-solid fa-user"></i> Single Transaction Mode
+                            </button>
+                            <button type="button" class="mode-tab" data-mode="batch">
+                                <i class="fa-solid fa-list-check"></i> Batch Upload Mode (CSV / JSON)
+                            </button>
+                        </div>
+
+                        <!-- 2a. SINGLE MODE TERMINAL CONTAINER -->
+                        <div id="single-analysis-container">
+                            <form id="analyzer-form">
+                                <!-- Shell splitting Form inputs -->
+                                <div class="fintech-form-layout">
+                                    <!-- Card Mockup Widget -->
+                                    <div class="card-widget-side">
+                                        <div class="payment-card-mockup">
+                                            <div class="card-glass-gloss"></div>
+                                            <div class="card-chip"></div>
+                                            <div class="card-visa-logo">VISA</div>
+                                            <div class="card-number-display" id="card-display-number">•••• •••• •••• 4242</div>
+                                            <div class="card-bottom-row">
+                                                <div class="card-holder-display">
+                                                    <span class="card-meta-label">CARDHOLDER</span>
+                                                    <span class="card-meta-val" id="card-display-name">JOHN DOE</span>
+                                                </div>
+                                                <div class="card-expiry-display">
+                                                    <span class="card-meta-label">EXPIRES</span>
+                                                    <span class="card-meta-val">12/28</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card-widget-helper">
+                                            <i class="fa-solid fa-circle-info"></i> Visualized transaction matches values filled in form columns dynamically.
+                                        </div>
+                                    </div>
+
+                                    <!-- Standard Transaction Parameters -->
+                                    <div class="form-fields-side">
+                                        <div class="form-inputs-grid">
+                                            <div class="input-group">
+                                                <label for="input-cardholder">Cardholder Name</label>
+                                                <div class="input-with-icon">
+                                                    <span class="input-icon"><i class="fa-solid fa-user"></i></span>
+                                                    <input type="text" id="input-cardholder" placeholder="John Doe" value="John Doe">
+                                                </div>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-card-number">Card Number</label>
+                                                <div class="input-with-icon">
+                                                    <span class="input-icon"><i class="fa-solid fa-credit-card"></i></span>
+                                                    <input type="text" id="input-card-number" placeholder="4242 4242 4242 4242" value="4242 4242 4242 4242">
+                                                </div>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-amount">Transaction Amount ($)</label>
+                                                <div class="input-with-icon">
+                                                    <span class="input-icon"><i class="fa-solid fa-dollar-sign"></i></span>
+                                                    <input type="number" id="input-amount" step="0.01" placeholder="e.g. 99.99" required value="45.00">
+                                                </div>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-time">Transaction Time (seconds)</label>
+                                                <div class="input-with-icon">
+                                                    <span class="input-icon"><i class="fa-solid fa-clock"></i></span>
+                                                    <input type="number" id="input-time" step="1" placeholder="e.g. 10800" required value="10800">
+                                                </div>
+                                                <div class="field-helper" id="time-helper">Equivalent to: 3 hours.</div>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-merchant">Merchant Outlet</label>
+                                                <div class="input-with-icon">
+                                                    <span class="input-icon"><i class="fa-solid fa-store"></i></span>
+                                                    <input type="text" id="input-merchant" placeholder="e.g. Amazon Web Services" value="Amazon Web Services">
+                                                </div>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-category">Merchant Category</label>
+                                                <select id="input-category" class="dropdown">
+                                                    <option value="Online Retail" selected>Online Retail</option>
+                                                    <option value="Food & Dining">Food & Dining</option>
+                                                    <option value="Travel & Transportation">Travel & Transportation</option>
+                                                    <option value="Gas & Utilities">Gas & Utilities</option>
+                                                    <option value="Entertainment">Entertainment</option>
+                                                    <option value="Services & Support">Services & Support</option>
+                                                </select>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-country">Country Origin</label>
+                                                <select id="input-country" class="dropdown">
+                                                    <option value="United States" selected>United States</option>
+                                                    <option value="Germany">Germany</option>
+                                                    <option value="United Kingdom">United Kingdom</option>
+                                                    <option value="France">France</option>
+                                                    <option value="Japan">Japan</option>
+                                                    <option value="Australia">Australia</option>
+                                                </select>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="input-device">Device Signature</label>
+                                                <select id="input-device" class="dropdown">
+                                                    <option value="Mobile App" selected>Mobile App</option>
+                                                    <option value="Web Browser">Web Browser</option>
+                                                    <option value="POS Terminal">POS Terminal</option>
+                                                    <option value="Automated API">Automated API</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PCA Features Accordion -->
+                                <div class="pca-section collapsed">
+                                    <div class="pca-header" id="pca-toggle">
+                                        <h3><i class="fa-solid fa-cube"></i> Advanced Classifier Features (PCA V1 - V28) <span class="pca-info-badge" title="PCA-transformed features representing anonymized cardholders data."><i class="fa-solid fa-circle-info"></i> Info</span></h3>
+                                        <span class="toggle-indicator"><i class="fa-solid fa-chevron-down"></i></span>
+                                    </div>
+                                    <div class="pca-sliders-grid" id="pca-grid">
+                                        <div class="sliders-column" id="sliders-col-left">
+                                            <!-- Generated Dynamically -->
+                                        </div>
+                                        <div class="sliders-column" id="sliders-col-right">
+                                            <!-- Generated Dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="form-actions-row">
+                                    <button type="button" id="reset-btn" class="btn btn-secondary btn-reset">
+                                        <i class="fa-solid fa-rotate-left"></i> Reset Form
+                                    </button>
+                                    <button type="button" id="randomize-btn" class="btn btn-secondary btn-randomize">
+                                        <i class="fa-solid fa-dice"></i> Randomize Transaction
+                                    </button>
+                                    <button type="submit" id="submit-btn" class="btn btn-primary btn-submit">
+                                        <span class="btn-text"><i class="fa-solid fa-wand-magic-sparkles"></i> Run Multi-Model Analysis</span>
+                                        <div class="spinner btn-spinner" id="btn-spinner"></div>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- 2b. BATCH MODE TERMINAL CONTAINER -->
+                        <div id="batch-analysis-container" class="batch-mode-container" style="display: none;">
+                            <div class="batch-upload-grid">
+                                <!-- Drag & Drop Card -->
+                                <div class="drag-drop-zone" id="batch-drag-drop-zone">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h3>Drag & Drop CSV File</h3>
+                                    <p>Upload a creditcard-formatted transaction file (must contain Amount, Time, and V1-V28 columns)</p>
+                                    <div class="file-info" id="batch-file-info">No file selected.</div>
+                                    <input type="file" id="batch-file-input" accept=".csv" style="display: none;">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('batch-file-input').click()">Browse Local Files</button>
+                                </div>
+
+                                <!-- Raw JSON Paste Area -->
+                                <div class="paste-zone-box">
+                                    <label for="batch-json-input"><i class="fa-solid fa-code"></i> Paste JSON Array Payload</label>
+                                    <textarea id="batch-json-input" class="json-textarea" placeholder='[
+  { "Amount": 125.00, "Time": 3600, "V1": -1.2, "V2": 0.5, ... },
+  { "Amount": 999.99, "Time": 7200, "V1": 0.8, "V2": -1.4, ... }
+]'></textarea>
+                                    <div class="field-helper" style="font-size:0.75rem;"><i class="fa-solid fa-info-circle"></i> Input must be a valid array of objects containing transaction fields.</div>
+                                </div>
+                            </div>
+
+                            <!-- Batch settings / thresholds -->
+                            <div class="form-actions-row" style="margin-top:0.5rem; justify-content: space-between; align-items: center;">
+                                <div class="batch-threshold-selector" style="display: flex; align-items: center; gap: 1rem;">
+                                    <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary);"><i class="fa-solid fa-sliders"></i> Batch Alert Sensitivity:</span>
+                                    <input type="range" id="batch-threshold-slider" min="30" max="90" step="5" value="50" style="width:150px;">
+                                    <strong id="batch-threshold-val" style="color:var(--warning);">50%</strong>
+                                </div>
+                                <div class="btn-group-row" style="display:flex; gap:0.5rem;">
+                                    <button type="button" class="btn btn-secondary" id="btn-batch-clear"><i class="fa-solid fa-rotate-left"></i> Clear Inputs</button>
+                                    <button type="button" class="btn btn-primary" id="btn-batch-submit">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Process Batch Transactions
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Processing Progress Bar -->
+                            <div class="batch-progress-wrapper" id="batch-progress-box" style="display: none;">
+                                <div class="progress-header">
+                                    <span>Processing Queue...</span>
+                                    <span id="batch-progress-status">0% (0 / 0 rows)</span>
+                                </div>
+                                <div class="progress-bar-track">
+                                    <div class="progress-bar-fill" id="batch-progress-bar-fill"></div>
+                                </div>
+                            </div>
+
+                            <!-- Batch Execution Report Cards -->
+                            <div class="batch-results-wrapper" id="batch-results-section" style="display: none;">
+                                <div class="card-header" style="padding-left:0; padding-right:0;">
+                                    <h3><i class="fa-solid fa-clipboard-check"></i> Batch Execution Summary Report</h3>
+                                    <p>Comprehensive aggregated risk metrics from batch classification runs</p>
+                                </div>
+                                
+                                <div class="batch-summary-cards">
+                                    <div class="batch-summary-card">
+                                        <div class="batch-card-label">Total Transactions</div>
+                                        <div class="batch-card-val text-blue" id="batch-stat-total">0</div>
+                                    </div>
+                                    <div class="batch-summary-card">
+                                        <div class="batch-card-label">Flagged Fraud</div>
+                                        <div class="batch-card-val text-danger" id="batch-stat-fraud">0</div>
+                                    </div>
+                                    <div class="batch-summary-card">
+                                        <div class="batch-card-label">Approved Legitimate</div>
+                                        <div class="batch-card-val text-success" id="batch-stat-legit">0</div>
+                                    </div>
+                                    <div class="batch-summary-card">
+                                        <div class="batch-card-label">Ensemble Fraud Rate</div>
+                                        <div class="batch-card-val text-warning" id="batch-stat-rate">0.00%</div>
+                                    </div>
+                                </div>
+
+                                <!-- Batch Details Table Grid -->
+                                <div class="history-table-container" style="margin-top: 1.5rem; max-height: 300px; overflow-y: auto;">
+                                    <table class="history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Txn ID</th>
+                                                <th>Cardholder</th>
+                                                <th>Merchant</th>
+                                                <th>Amount</th>
+                                                <th>Ensemble Votes</th>
+                                                <th>Verdict</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="batch-results-table-body">
+                                            <!-- Dynamic grid rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verdict output container -->
+                    <div id="verdict-section" class="verdict-wrapper hidden">
+                        <!-- Transaction Summary Callout Card -->
+                        <div class="card transaction-summary-card" id="tx-summary-card">
+                            <div class="summary-card-row">
+                                <div class="summary-item">
+                                    <span class="summary-label"><i class="fa-solid fa-receipt"></i> Analyzed Amount</span>
+                                    <span class="summary-value" id="summary-amount">$0.00</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label"><i class="fa-regular fa-clock"></i> Time Elapsed</span>
+                                    <span class="summary-value" id="summary-time">0 hours</span>
+                                </div>
+                                <div class="summary-item extreme-item">
+                                    <span class="summary-label"><i class="fa-solid fa-chart-bar"></i> Key Deviating Features (Max PCA Variance)</span>
+                                    <div class="extreme-badges-row" id="summary-extreme-pca">
+                                        <span class="pca-badge">None</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ensemble Banner Card -->
+                        <div class="card verdict-banner" id="verdict-banner-card">
+                            <div class="verdict-banner-row">
+                                <div class="verdict-status">
+                                    <span class="verdict-badge" id="ensemble-badge"><i class="fa-solid fa-triangle-exclamation"></i> SUSPICIOUS</span>
+                                    <h2 id="ensemble-verdict-title">Ensemble Verdict: Fraudulent</h2>
+                                </div>
+                                <div class="verdict-score-box">
+                                    <span class="verdict-score-num" id="ensemble-confidence-percent">94.5%</span>
+                                    <span class="verdict-score-label">Confidence Score</span>
+                                </div>
+                                <div class="verdict-action-box" style="display:flex; align-items:center; margin-left: auto;">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-export-pdf" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);"><i class="fa-solid fa-file-pdf"></i> Export Risk Report</button>
+                                </div>
+                            </div>
+
+                            <!-- Risk Thermometer -->
+                            <div class="risk-thermometer-container">
+                                <div class="risk-thermometer-labels">
+                                    <span class="risk-label-safe"><i class="fa-solid fa-circle-check"></i> Legitimate</span>
+                                    <span class="risk-value-text" id="risk-value-text">Threat Level: 0.0%</span>
+                                    <span class="risk-label-danger"><i class="fa-solid fa-triangle-exclamation"></i> Fraudulent</span>
+                                </div>
+                                <div class="risk-thermometer-track">
+                                    <div class="risk-thermometer-bar" id="risk-thermometer-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="verdict-votes" id="ensemble-votes">
+                                <i class="fa-solid fa-check-double"></i> 3 of 3 models agreed
+                            </div>
+                        </div>
+
+                        <!-- Gauges Grid -->
+                        <div class="gauges-grid">
+                            <div class="card gauge-card" id="gauge-rf">
+                                <div class="gauge-card-header">
+                                    <h3>Random Forest</h3>
+                                    <span class="auc-badge" title="Model AUC (Area Under Curve) Score">AUC: 0.9770</span>
+                                </div>
+                                <div class="gauge-chart-container">
+                                    <div class="gauge-ring" style="--val: 0;">
+                                        <div class="gauge-center">
+                                            <span class="gauge-val" id="gauge-val-rf">0%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="gauge-footer">
+                                    <span class="badge" id="badge-rf">Legitimate</span>
+                                </div>
+                            </div>
+                            
+                            <div class="card gauge-card" id="gauge-xgb">
+                                <div class="gauge-card-header">
+                                    <h3>XGBoost</h3>
+                                    <span class="auc-badge" title="Model AUC (Area Under Curve) Score">AUC: 0.9814</span>
+                                </div>
+                                <div class="gauge-chart-container">
+                                    <div class="gauge-ring" style="--val: 0;">
+                                        <div class="gauge-center">
+                                            <span class="gauge-val" id="gauge-val-xgb">0%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="gauge-footer">
+                                    <span class="badge" id="badge-xgb">Legitimate</span>
+                                </div>
+                            </div>
+
+                            <div class="card gauge-card" id="gauge-lgbm">
+                                <div class="gauge-card-header">
+                                    <h3>LightGBM</h3>
+                                    <span class="auc-badge" title="Model AUC (Area Under Curve) Score">AUC: 0.9806</span>
+                                </div>
+                                <div class="gauge-chart-container">
+                                    <div class="gauge-ring" style="--val: 0;">
+                                        <div class="gauge-center">
+                                            <span class="gauge-val" id="gauge-val-lgbm">0%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="gauge-footer">
+                                    <span class="badge" id="badge-lgbm">Legitimate</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Per-Model Probability Table -->
+                        <div class="card prob-table-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-table-columns"></i> Model Probability Breakdown</h3>
+                                <p>Comparison of prediction probabilities and verdicts across the three individual classifiers.</p>
+                            </div>
+                            <div class="table-container">
+                                <table class="prob-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Classifier Model</th>
+                                            <th>Fraud Probability</th>
+                                            <th>Visual Threat Scale</th>
+                                            <th>Individual Verdict</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Random Forest</strong></td>
+                                            <td id="prob-rf">0.0%</td>
+                                            <td>
+                                                <div class="mini-bar-track"><div class="mini-bar" id="mini-bar-rf" style="width: 0%;"></div></div>
+                                            </td>
+                                            <td><span class="badge" id="badge-table-rf">LEGITIMATE</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>XGBoost</strong></td>
+                                            <td id="prob-xgb">0.0%</td>
+                                            <td>
+                                                <div class="mini-bar-track"><div class="mini-bar" id="mini-bar-xgb" style="width: 0%;"></div></div>
+                                            </td>
+                                            <td><span class="badge" id="badge-table-xgb">LEGITIMATE</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>LightGBM</strong></td>
+                                            <td id="prob-lgbm">0.0%</td>
+                                            <td>
+                                                <div class="mini-bar-track"><div class="mini-bar" id="mini-bar-lgbm" style="width: 0%;"></div></div>
+                                            </td>
+                                            <td><span class="badge" id="badge-table-lgbm">LEGITIMATE</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- SHAP Explanation Section -->
+                        <div class="card shap-card" id="shap-section">
+                            <div class="card-header shap-header-flex">
+                                <div>
+                                    <h2><i class="fa-solid fa-brain"></i> SHAP Explainability Dashboard</h2>
+                                    <p>Visualizing feature contribution pushing the prediction towards Fraud (Red) or Legitimate (Green).</p>
+                                </div>
+                                <div class="model-selector-container">
+                                    <label for="shap-model-select">Explain Model:</label>
+                                    <select id="shap-model-select" class="dropdown">
+                                        <option value="rf">Random Forest</option>
+                                        <option value="xgb">XGBoost</option>
+                                        <option value="lgbm">LightGBM</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="shap-chart-container">
+                                <canvas id="shapChart"></canvas>
+                            </div>
+                            <div class="shap-summary-box" id="shap-summary-text">
+                                <i class="fa-solid fa-circle-info"></i> Run analysis to see which parameters contributed most to the prediction.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. PERFORMANCE VIEW -->
+                <div id="performance-view" class="view-panel">
+                    <div class="card comparison-card">
+                        <div class="card-header">
+                            <h2><i class="fa-solid fa-chart-column"></i> Multi-Model Performance Dashboard</h2>
+                            <p>In-depth comparison of trained models using precomputed evaluations on test subset.</p>
+                        </div>
+
+                        <!-- Tabs Navigation -->
+                        <div class="tabs-header">
+                            <button class="tab-btn active" data-tab="roc-panel"><i class="fa-solid fa-wave-square"></i> ROC Curve</button>
+                            <button class="tab-btn" data-tab="pr-panel"><i class="fa-solid fa-signature"></i> Precision-Recall Curve</button>
+                            <button class="tab-btn" data-tab="metrics-panel"><i class="fa-solid fa-table-list"></i> Metrics Summary</button>
+                            <button class="tab-btn" data-tab="importance-panel"><i class="fa-solid fa-ranking-stars"></i> Global Feature Importance</button>
+                            <button class="tab-btn" data-tab="explainability-panel"><i class="fa-solid fa-brain"></i> Feature Correlations</button>
+                        </div>
+
+                        <!-- Tab Panels -->
+                        <div class="tabs-content">
+                            <!-- ROC Panel -->
+                            <div class="tab-panel active" id="roc-panel">
+                                <div class="panel-layout">
+                                    <div class="chart-box">
+                                        <canvas id="rocChart"></canvas>
+                                    </div>
+                                    <div class="explanation-box">
+                                        <h3>Receiver Operating Characteristic</h3>
+                                        <p>The ROC curve plots the True Positive Rate (Sensitivity) against the False Positive Rate (1 - Specificity) at various threshold settings.</p>
+                                        <ul class="info-list">
+                                            <li><strong>AUC (Area Under Curve)</strong> measures the model's ability to distinguish classes. Higher is better.</li>
+                                            <li><strong>LightGBM</strong> and <strong>XGBoost</strong> both achieve extremely competitive AUC scores (&gt;0.97).</li>
+                                            <li>The ideal model reaches the top-left corner quickly (AUC = 1.0).</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PR Panel -->
+                            <div class="tab-panel" id="pr-panel">
+                                <div class="panel-layout">
+                                    <div class="chart-box">
+                                        <canvas id="prChart"></canvas>
+                                    </div>
+                                    <div class="explanation-box">
+                                        <h3>Precision-Recall Curve</h3>
+                                        <p>For highly imbalanced datasets like credit card fraud, PR curves are often more informative than ROC curves since they focus directly on the positive class (fraud).</p>
+                                        <ul class="info-list">
+                                            <li><strong>Precision:</strong> Out of all predicted fraud cases, how many are actually fraud?</li>
+                                            <li><strong>Recall:</strong> Out of all actual fraud cases, how many did the model identify?</li>
+                                            <li>Highly useful for tuning the classification threshold depending on cost metrics.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Metrics Panel -->
+                            <div class="tab-panel" id="metrics-panel">
+                                <div class="table-container">
+                                    <table class="metrics-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Algorithm</th>
+                                                <th>Precision</th>
+                                                <th>Recall</th>
+                                                <th>F1 Score</th>
+                                                <th>ROC AUC</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="metrics-table-body">
+                                            <!-- Populated dynamically via JS -->
+                                            <tr>
+                                                <td colspan="5" class="loading-placeholder">Loading performance data from server...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Confusion Matrices Heatmaps Grid -->
+                                <div class="confusion-matrices-container">
+                                    <h3 class="cm-main-title"><i class="fa-solid fa-border-all"></i> Confusion Matrices (Test Set Evaluation)</h3>
+                                    <div class="cm-grid">
+                                        <!-- RF Confusion Matrix -->
+                                        <div class="cm-card" id="cm-rf">
+                                            <h4>Random Forest</h4>
+                                            <div class="cm-matrix">
+                                                <div class="cm-cell cm-tn" title="True Negatives: Legit correctly classified">
+                                                    <span class="cell-label">TN</span>
+                                                    <span class="cell-value" id="cm-val-rf-tn">0</span>
+                                                    <span class="cell-desc">Legit ✔</span>
+                                                </div>
+                                                <div class="cm-cell cm-fp" title="False Positives: Legit flagged as Fraud">
+                                                    <span class="cell-label">FP</span>
+                                                    <span class="cell-value" id="cm-val-rf-fp">0</span>
+                                                    <span class="cell-desc">False Alarm ⚠</span>
+                                                </div>
+                                                <div class="cm-cell cm-fn" title="False Negatives: Fraud missed as Legit">
+                                                    <span class="cell-label">FN</span>
+                                                    <span class="cell-value" id="cm-val-rf-fn">0</span>
+                                                    <span class="cell-desc">Missed Fraud ✖</span>
+                                                </div>
+                                                <div class="cm-cell cm-tp" title="True Positives: Fraud correctly flagged">
+                                                    <span class="cell-label">TP</span>
+                                                    <span class="cell-value" id="cm-val-rf-tp">0</span>
+                                                    <span class="cell-desc">Fraud Flagged ✔</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- XGBoost Confusion Matrix -->
+                                        <div class="cm-card" id="cm-xgb">
+                                            <h4>XGBoost</h4>
+                                            <div class="cm-matrix">
+                                                <div class="cm-cell cm-tn" title="True Negatives: Legit correctly classified">
+                                                    <span class="cell-label">TN</span>
+                                                    <span class="cell-value" id="cm-val-xgb-tn">0</span>
+                                                    <span class="cell-desc">Legit ✔</span>
+                                                </div>
+                                                <div class="cm-cell cm-fp" title="False Positives: Legit flagged as Fraud">
+                                                    <span class="cell-label">FP</span>
+                                                    <span class="cell-value" id="cm-val-xgb-fp">0</span>
+                                                    <span class="cell-desc">False Alarm ⚠</span>
+                                                </div>
+                                                <div class="cm-cell cm-fn" title="False Negatives: Fraud missed as Legit">
+                                                    <span class="cell-label">FN</span>
+                                                    <span class="cell-value" id="cm-val-xgb-fn">0</span>
+                                                    <span class="cell-desc">Missed Fraud ✖</span>
+                                                </div>
+                                                <div class="cm-cell cm-tp" title="True Positives: Fraud correctly flagged">
+                                                    <span class="cell-label">TP</span>
+                                                    <span class="cell-value" id="cm-val-xgb-tp">0</span>
+                                                    <span class="cell-desc">Fraud Flagged ✔</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- LightGBM Confusion Matrix -->
+                                        <div class="cm-card" id="cm-lgbm">
+                                            <h4>LightGBM</h4>
+                                            <div class="cm-matrix">
+                                                <div class="cm-cell cm-tn" title="True Negatives: Legit correctly classified">
+                                                    <span class="cell-label">TN</span>
+                                                    <span class="cell-value" id="cm-val-lgbm-tn">0</span>
+                                                    <span class="cell-desc">Legit ✔</span>
+                                                </div>
+                                                <div class="cm-cell cm-fp" title="False Positives: Legit flagged as Fraud">
+                                                    <span class="cell-label">FP</span>
+                                                    <span class="cell-value" id="cm-val-lgbm-fp">0</span>
+                                                    <span class="cell-desc">False Alarm ⚠</span>
+                                                </div>
+                                                <div class="cm-cell cm-fn" title="False Negatives: Fraud missed as Legit">
+                                                    <span class="cell-label">FN</span>
+                                                    <span class="cell-value" id="cm-val-lgbm-fn">0</span>
+                                                    <span class="cell-desc">Missed Fraud ✖</span>
+                                                </div>
+                                                <div class="cm-cell cm-tp" title="True Positives: Fraud correctly flagged">
+                                                    <span class="cell-label">TP</span>
+                                                    <span class="cell-value" id="cm-val-lgbm-tp">0</span>
+                                                    <span class="cell-desc">Fraud Flagged ✔</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Importance Panel -->
+                            <div class="tab-panel" id="importance-panel">
+                                <div class="panel-layout">
+                                    <div class="chart-box">
+                                        <canvas id="importanceChart"></canvas>
+                                    </div>
+                                    <div class="explanation-box">
+                                        <div class="importance-header-flex">
+                                            <h3>Global Feature Importance</h3>
+                                            <select id="importance-model-select" class="dropdown sm">
+                                                <option value="rf">Random Forest</option>
+                                                <option value="xgb">XGBoost</option>
+                                                <option value="lgbm">LightGBM</option>
+                                            </select>
+                                        </div>
+                                        <p>This chart represents the features that contributed the most information gain across the entire training dataset.</p>
+                                        <ul class="info-list">
+                                            <li>Features like **V17, V14, V12, and V10** often show the highest correlations with fraudulent activity.</li>
+                                            <li>Different algorithms weigh features differently based on their architecture (e.g. leaf-wise splits vs depth-wise splits).</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Global Explainability & Heatmap Panel -->
+                            <div class="tab-panel" id="explainability-panel">
+                                <div class="panel-layout vertical">
+                                    <div class="explainability-intro">
+                                        <h3><i class="fa-solid fa-microscope"></i> Global Feature Correlations & AI Explainability</h3>
+                                        <p>Understand correlations between individual PCA features. This heatmap represents standard dependencies across the anonymized variables from the reference training set.</p>
+                                    </div>
+                                    <div class="heatmap-section-wrapper">
+                                        <div class="heatmap-controls">
+                                            <label for="heatmap-feature-filter">Focus Feature:</label>
+                                            <select id="heatmap-feature-filter" class="dropdown sm">
+                                                <!-- Populated dynamically via JS -->
+                                            </select>
+                                        </div>
+                                        <div class="heatmap-visual-box">
+                                            <div id="heatmap-grid" class="correlation-grid">
+                                                <!-- Rendered dynamically as a colored grid -->
+                                            </div>
+                                        </div>
+                                        <div class="heatmap-legend">
+                                            <span class="legend-scale neg-strong"><i class="fa-solid fa-square" style="color: #60a5fa;"></i> Negative Correlation (up to -1.0)</span>
+                                            <span class="legend-scale neutral"><i class="fa-solid fa-square" style="color: rgba(255,255,255,0.05);"></i> No Correlation (0.0)</span>
+                                            <span class="legend-scale pos-strong"><i class="fa-solid fa-square" style="color: #ef4444;"></i> Positive Correlation (up to +1.0)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. QUEUE VIEW -->
+                <div id="queue-view" class="view-panel">
+                    <div class="card queue-card">
+                        <div class="card-header flex-header">
+                            <div>
+                                <h2><i class="fa-solid fa-list-check"></i> Session Review Queue & Audit Log</h2>
+                                <p>Review historical transactions stored in the persistent database during this reviewer session.</p>
+                            </div>
+                            <div class="queue-actions-row">
+                                <button type="button" class="btn btn-secondary btn-sm" id="queue-download-csv-btn">
+                                    <i class="fa-solid fa-file-csv"></i> Download CSV Report
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="queue-refresh-btn">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Refresh Queue
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="clear-history-btn">
+                                    <i class="fa-solid fa-trash-can"></i> Clear Database
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Search/Filter Controls -->
+                        <div class="filter-controls-row">
+                            <div class="search-input-wrapper">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="queue-search-input" placeholder="Search by Transaction ID, cardholder, or merchant...">
+                            </div>
+                            <select id="queue-filter-verdict" class="dropdown sm">
+                                <option value="all">All Verdicts</option>
+                                <option value="FRAUD">Fraudulent Only</option>
+                                <option value="LEGITIMATE">Legitimate Only</option>
+                            </select>
+                        </div>
+
+                        <!-- Main Database Review Queue Table -->
+                        <div class="history-table-container">
+                            <table class="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Txn ID</th>
+                                        <th>Timestamp</th>
+                                        <th>Cardholder</th>
+                                        <th>Merchant</th>
+                                        <th>Amount</th>
+                                        <th>Risk Score</th>
+                                        <th>Verdict</th>
+                                        <th>Consensus</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-log-body">
+                                    <tr>
+                                        <td colspan="9" class="history-placeholder">Loading transaction registry...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. DEVELOPER API DOCS VIEW -->
+                <div id="api-view" class="view-panel">
+                    <div class="card api-card">
+                        <div class="card-header">
+                            <h2><i class="fa-solid fa-code"></i> API Integration Reference docs</h2>
+                            <p>Integrate CCFD Radar ML classifiers directly into your payment flows via standard JSON REST endpoints.</p>
+                        </div>
+
+                        <div class="api-split-layout">
+                            <!-- Left: Endpoint specifications -->
+                            <div class="api-specs-pane">
+                                <div class="endpoint-heading">
+                                    <span class="method POST">POST</span>
+                                    <span class="path">/api/predict</span>
+                                </div>
+                                <p class="endpoint-desc">Evaluates a credit card transaction across all three classifiers and computes SHAP feature importance vectors.</p>
+
+                                <h4>Request Headers</h4>
+                                <table class="api-docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Header</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>Content-Type</code></td>
+                                            <td><code>application/json</code></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <h4>Payload Fields</h4>
+                                <table class="api-docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>Amount</code></td>
+                                            <td>float</td>
+                                            <td>Transaction value in USD (e.g. 45.00)</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>Time</code></td>
+                                            <td>integer</td>
+                                            <td>Seconds elapsed since dataset start</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>V1 - V28</code></td>
+                                            <td>float</td>
+                                            <td>Confidential PCA-derived attributes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>Card_Number</code></td>
+                                            <td>string</td>
+                                            <td>Optional card number string for auditing</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>Merchant</code></td>
+                                            <td>string</td>
+                                            <td>Optional merchant name string</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Right: Sample request/responses -->
+                            <div class="api-code-pane">
+                                <div class="code-tab-header">
+                                    <span class="code-tab-title">Example POST Query</span>
+                                    <button class="btn-copy-code" id="btn-copy-curl"><i class="fa-solid fa-copy"></i> Copy cURL</button>
+                                </div>
+                                <pre class="code-block"><code id="code-curl-content">curl -X POST http://localhost:5000/api/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Amount": 142.50,
+    "Time": 43200,
+    "Cardholder": "John Doe",
+    "Merchant": "Amazon Web Services",
+    "V1": -1.35, "V2": 0.42, "V3": -0.87,
+    "V4": 1.05, "V5": 0.12, "V6": -0.34,
+    "V7": 0.95, "V8": 0.08, "V9": -0.15,
+    ...
+  }'</code></pre>
+
+                                <div class="code-tab-header">
+                                    <span class="code-tab-title">Example JSON Response</span>
+                                    <button class="btn-copy-code" id="btn-copy-json"><i class="fa-solid fa-copy"></i> Copy JSON</button>
+                                </div>
+                                <pre class="code-block"><code id="code-json-content">{
+  "txn_id": "TXN-840294",
+  "cardholder": "John Doe",
+  "merchant": "Amazon Web Services",
+  "ensemble": {
+    "verdict": "LEGITIMATE",
+    "confidence": 0.985,
+    "votes": 3
+  },
+  "models": {
+    "rf": { "name": "Random Forest", "verdict": "LEGITIMATE", "probability": 0.051 },
+    "xgb": { "name": "XGBoost", "verdict": "LEGITIMATE", "probability": 0.012 },
+    "lgbm": { "name": "LightGBM", "verdict": "LEGITIMATE", "probability": 0.023 }
+  },
+  "shap": {
+    "rf": [ { "feature": "V14", "value": 1.25, "shap": -0.421 } ]
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+
+            <footer class="footer">
+                <div class="footer-container">
+                    <p>&copy; 2026 Credit Card Fraud Detection (CCFD) Project. Production-Grade Enterprise Platform Shell.</p>
+                    <p class="footer-subtext">Engineered with SQLite3, Flask, Scikit-Learn, XGBoost, LightGBM, SHAP & Chart.js</p>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Custom Script -->
+    <script src="app.js"></script>
+</body>
+</html>

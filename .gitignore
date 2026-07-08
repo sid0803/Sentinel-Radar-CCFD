@@ -1,0 +1,35 @@
+# Environments
+venv/
+.venv/
+env/
+.env
+Active/
+Active*/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pkl
+# Note: We specifically allow pre-trained models for easy deployment
+!backend/models/*.pkl
+
+# Databases
+*.db
+*.sqlite3
+
+# Large Dataset Files
+*.csv
+*.xlsx
+!backend/models/*.json
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.gemini/
+.agents/
+walkthrough.md
+task.md
+implementation_plan.md
