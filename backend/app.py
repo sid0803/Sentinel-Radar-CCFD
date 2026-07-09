@@ -37,8 +37,6 @@ if os.path.isabs(env_db_path):
 else:
     DB_PATH = os.path.join(os.path.dirname(__file__), env_db_path)
 
-# Dev Mode: when True, velocity check is bypassed so repeated test inputs produce stable results
-DEV_MODE = os.getenv('DEV_MODE', 'false').lower() == 'true'
 
 allowed_origins_str = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
 allowed_origins = [origin.strip() for origin in allowed_origins_str.split(',')]
@@ -107,14 +105,10 @@ def check_api_key():
 # -----------------------------------------------------------------------------
 # Metadata Heuristics Rule Engine
 # -----------------------------------------------------------------------------
-def evaluate_metadata_rules(card_number, merchant, category, country, device, amount, skip_velocity=False):
+def evaluate_metadata_rules(card_number, merchant, category, country, device, amount):
     """
     Industry Heuristics Engine. Checks transaction metadata fields for common fraud signals.
     Returns: (risk_score, triggered_reasons)
-    
-    Args:
-        skip_velocity: When True (Dev Mode), the velocity check is bypassed so repeated
-                       test inputs with the same card number produce stable, deterministic results.
     """
     risk_score = 0.0
     reasons = []
@@ -145,26 +139,22 @@ def evaluate_metadata_rules(card_number, merchant, category, country, device, am
         risk_score += 0.2
         reasons.append(f"High-risk transaction destination: {country}")
         
-    # 5. Velocity check (within 5 minutes) — skipped in Dev Mode
-    if not skip_velocity:
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT COUNT(*) FROM transactions 
-                WHERE card_number = ? AND timestamp >= datetime('now', '-5 minutes')
-            ''', (card_number,))
-            recent_count = cursor.fetchone()[0]
-            conn.close()
-            
-            if recent_count >= 3:
-                risk_score += 0.45
-                reasons.append(f"High velocity trigger: {recent_count} transactions in last 5 minutes")
-        except Exception as e:
-            print(f"[RULE ENGINE ERROR] Velocity check failed: {e}")
-    else:
-        reasons_note = "[Dev Mode] Velocity check bypassed — stable results mode active"
-        print(f"[DEV MODE] {reasons_note}")
+    # 5. Velocity check (within 5 minutes)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) FROM transactions 
+            WHERE card_number = ? AND timestamp >= datetime('now', '-5 minutes')
+        ''', (card_number,))
+        recent_count = cursor.fetchone()[0]
+        conn.close()
+        
+        if recent_count >= 3:
+            risk_score += 0.45
+            reasons.append(f"High velocity trigger: {recent_count} transactions in last 5 minutes")
+    except Exception as e:
+        print(f"[RULE ENGINE ERROR] Velocity check failed: {e}")
         
     # Clamp final score
     risk_score = min(1.0, max(0.0, risk_score))
@@ -238,25 +228,6 @@ def get_stats():
         return jsonify(precomputed_stats['models'])
     return jsonify({"error": "Stats not loaded. Please train models first."}), 500
 
-@app.route('/api/dev-mode', methods=['GET'])
-def get_dev_mode():
-    """Return the current dev mode status."""
-    return jsonify({"dev_mode": DEV_MODE})
-
-@app.route('/api/dev-mode', methods=['POST'])
-def set_dev_mode():
-    """Toggle dev mode at runtime (requires valid API key). 
-    When enabled, the velocity check is bypassed so repeated test inputs produce 
-    stable, deterministic results. This is intended for testing only."""
-    global DEV_MODE
-    body = request.json or {}
-    enabled = bool(body.get('enabled', False))
-    DEV_MODE = enabled
-    status = "enabled" if DEV_MODE else "disabled"
-    print(f"[DEV MODE] Dev mode {status} via API")
-    return jsonify({"dev_mode": DEV_MODE, "message": f"Dev mode {status}. Velocity checks {'bypassed' if DEV_MODE else 'active'}."})
-
-
 @app.route('/api/predict', methods=['POST'])
 def predict():
     if not models or not scaler:
@@ -310,13 +281,9 @@ def predict():
         # Calculate Ensemble Verdict with Rule-Based Heuristics
         avg_prob = sum(probabilities) / len(probabilities)
         
-        # Check if dev_mode is requested by the frontend (or env-configured)
-        request_dev_mode = bool(data.get('dev_mode', False)) or DEV_MODE
-        
-        # Evaluate metadata rules (velocity check skipped in dev mode)
+        # Evaluate metadata rules
         rules_risk, rules_triggered = evaluate_metadata_rules(
-            card_number, merchant, category, country, device, float(data.get('Amount', 0)),
-            skip_velocity=request_dev_mode
+            card_number, merchant, category, country, device, float(data.get('Amount', 0))
         )
         
         # Combined risk metric (70% ML, 30% Rules Risk heuristics)
