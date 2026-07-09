@@ -84,6 +84,15 @@
                         <span class="threshold-label" title="Developer API Security Key for authenticating with the Flask backend."><i class="fa-solid fa-key"></i> API Key:</span>
                         <input type="password" id="api-key-input" placeholder="API Key..." value="sentinel_dev_key_2026">
                     </div>
+                    <!-- Dev Mode Toggle -->
+                    <div class="threshold-tuner dev-mode-toggle-wrap" title="Dev Mode: Bypasses velocity check so repeated test inputs give consistent results. Enable for testing, disable for production.">
+                        <span class="threshold-label"><i class="fa-solid fa-flask-vial"></i> Dev Mode:</span>
+                        <label class="dev-mode-switch">
+                            <input type="checkbox" id="dev-mode-toggle">
+                            <span class="dev-mode-slider"></span>
+                        </label>
+                        <span id="dev-mode-status" class="dev-mode-badge off">OFF</span>
+                    </div>
                     <!-- Session Counters -->
                     <div class="session-stats-bar">
                         <div class="stat-pill">

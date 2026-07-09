@@ -6,6 +6,7 @@ let statsData = null;
 let currentPredictionData = null;
 let historyLog = [];
 let currentThreshold = 0.5;
+let devMode = false; // When true, velocity check is bypassed (Dev Mode)
 let apiKeyInput = null;
 
 // Auth helper
@@ -1993,12 +1994,14 @@ function bindAllEvents() {
                 Category: inputCategory.value || "Online Retail",
                 Country: inputCountry.value || "United States",
                 Device: inputDevice.value || "Mobile App",
-                threshold: currentThreshold
+                threshold: currentThreshold,
+                dev_mode: devMode  // Pass dev mode flag to skip velocity check when testing
             };
 
             for (let i = 1; i <= 28; i++) {
                 payload[`V${i}`] = parseFloat(document.getElementById(`slider-v${i}`).value);
             }
+
 
             try {
                 const response = await fetch('/api/predict', {
@@ -2297,6 +2300,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (savedKey) apiKeyInput.value = savedKey;
         apiKeyInput.addEventListener('input', (e) => {
             localStorage.setItem('sentinel_api_key', e.target.value.trim());
+        });
+    }
+
+    // Dev Mode toggle init
+    const devModeToggle = document.getElementById('dev-mode-toggle');
+    const devModeBadge = document.getElementById('dev-mode-status');
+    
+    function updateDevModeUI(enabled) {
+        devMode = enabled;
+        if (devModeToggle) devModeToggle.checked = enabled;
+        if (devModeBadge) {
+            devModeBadge.textContent = enabled ? 'ON' : 'OFF';
+            devModeBadge.className = 'dev-mode-badge ' + (enabled ? 'on' : 'off');
+        }
+    }
+
+    // Fetch current server dev mode state on load
+    fetch('/api/dev-mode', { headers: getAuthHeaders() })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) updateDevModeUI(data.dev_mode); })
+        .catch(() => {}); // Non-critical, just default to false
+
+    if (devModeToggle) {
+        devModeToggle.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            fetch('/api/dev-mode', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ enabled })
+            })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data) {
+                    updateDevModeUI(data.dev_mode);
+                    showToast(
+                        data.dev_mode
+                            ? '⚗️ Dev Mode ON — Velocity check bypassed for stable test results'
+                            : '🔒 Dev Mode OFF — Velocity check re-enabled (Production mode)',
+                        data.dev_mode ? 'warning' : 'success'
+                    );
+                }
+            })
+            .catch(err => showToast('Failed to toggle Dev Mode: ' + err.message, 'danger'));
         });
     }
 
