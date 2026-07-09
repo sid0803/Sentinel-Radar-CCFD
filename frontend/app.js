@@ -17,6 +17,28 @@ function getAuthHeaders() {
     };
 }
 
+// Global fetch interceptor for auth validation (UX-02)
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+    try {
+        const response = await originalFetch(...args);
+        if (response.status === 401) {
+            showToast("Authentication Failed — Invalid or missing API Key.", "danger");
+            const keyInput = document.getElementById('api-key-input');
+            if (keyInput) {
+                keyInput.classList.add('auth-error');
+                setTimeout(() => {
+                    keyInput.classList.remove('auth-error');
+                }, 3000);
+            }
+        }
+        return response;
+    } catch (err) {
+        console.error("Global fetch error:", err);
+        throw err;
+    }
+};
+
 // Chart instances
 let shapChartInstance = null;
 let rocChartInstance = null;
@@ -130,16 +152,22 @@ function showToast(message, type = 'info') {
     toast.innerHTML = `
         <i class="fa-solid ${iconClass}"></i>
         <div class="toast-body">${escapeHTML(message)}</div>
+        <button class="toast-close" type="button"><i class="fa-solid fa-xmark" style="font-size: 0.95rem;"></i></button>
+        <div class="toast-progress"></div>
     `;
 
     container.appendChild(toast);
 
-    setTimeout(() => {
+    const dismiss = () => {
+        if (toast.classList.contains('fade-out')) return;
         toast.classList.add('fade-out');
         setTimeout(() => {
             toast.remove();
         }, 300);
-    }, 4000);
+    };
+
+    toast.querySelector('.toast-close').addEventListener('click', dismiss);
+    setTimeout(dismiss, 4000);
 }
 
 
@@ -180,6 +208,27 @@ function switchView(targetViewId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. Initialize PCA Feature Sliders
 // ─────────────────────────────────────────────────────────────────────────────
+function updateActivePcaCount() {
+    let activeCount = 0;
+    for (let i = 1; i <= 28; i++) {
+        const slider = document.getElementById(`slider-v${i}`);
+        if (slider && parseFloat(slider.value) !== 0) {
+            activeCount++;
+        }
+    }
+    const countDisplay = document.getElementById('pca-active-count');
+    if (countDisplay) {
+        countDisplay.textContent = `${activeCount} of 28 Active`;
+        if (activeCount > 0) {
+            countDisplay.style.color = 'var(--accent)';
+            countDisplay.style.fontWeight = 'bold';
+        } else {
+            countDisplay.style.color = 'var(--text-secondary)';
+            countDisplay.style.fontWeight = 'normal';
+        }
+    }
+}
+
 function initSliders() {
     slidersColLeft.innerHTML = '';
     slidersColRight.innerHTML = '';
@@ -207,8 +256,10 @@ function initSliders() {
             const val = parseFloat(e.target.value).toFixed(2);
             sliderValDisplay.textContent = val;
             clearActivePresets();
+            updateActivePcaCount();
         });
     }
+    updateActivePcaCount();
     
     // Time input conversion listener
     if (inputTime) {
@@ -441,7 +492,19 @@ function renderVerdict(data, inputParams) {
             rulesCard.classList.remove('hidden');
             data.rules_triggered.forEach(reason => {
                 const li = document.createElement('li');
-                li.textContent = reason;
+                li.className = 'rule-item';
+                
+                let icon = 'fa-triangle-exclamation';
+                if (reason.toLowerCase().includes('velocity')) icon = 'fa-gauge-high';
+                else if (reason.toLowerCase().includes('amount')) icon = 'fa-dollar-sign';
+                else if (reason.toLowerCase().includes('device') || reason.toLowerCase().includes('fingerprint')) icon = 'fa-mobile-screen-button';
+                else if (reason.toLowerCase().includes('country') || reason.toLowerCase().includes('destination')) icon = 'fa-globe';
+                else if (reason.toLowerCase().includes('category') || reason.toLowerCase().includes('merchant')) icon = 'fa-store';
+                
+                li.innerHTML = `
+                    <span class="rule-icon"><i class="fa-solid ${icon}"></i></span>
+                    <span class="rule-text">${escapeHTML(reason)}</span>
+                `;
                 rulesList.appendChild(li);
             });
         } else {
@@ -606,7 +669,11 @@ function renderQueueTable() {
     if (filtered.length === 0) {
         queueTableBody.innerHTML = `
             <tr>
-                <td colspan="9" class="history-placeholder">No matching audit records in the database.</td>
+                <td colspan="9" class="history-placeholder" style="padding: 3.5rem 0; text-align: center; color: var(--text-muted);">
+                    <div style="font-size: 2.8rem; margin-bottom: 1rem; color: rgba(255, 255, 255, 0.05);"><i class="fa-solid fa-folder-open"></i></div>
+                    <div style="font-weight: 600; font-size: 1rem; color: var(--text-secondary); margin-bottom: 0.35rem;">No Transaction Records Found</div>
+                    <div style="font-size: 0.8rem; max-width: 300px; margin: 0 auto; color: var(--text-muted); line-height: 1.5;">No audit logs match your search filters, or the local SQLite ledger is empty.</div>
+                </td>
             </tr>
         `;
         return;
@@ -729,6 +796,7 @@ async function loadTransactionIntoAnalyzer(item) {
         };
 
         setFormValues(reconstructedParams);
+        updateActivePcaCount();
         
         // Set response predictive outputs
         const resultObj = {
@@ -742,7 +810,8 @@ async function loadTransactionIntoAnalyzer(item) {
                 xgb: { name: "XGBoost", verdict: fullItem.xgb_prob >= currentThreshold ? "FRAUD" : "LEGITIMATE", probability: fullItem.xgb_prob },
                 lgbm: { name: "LightGBM", verdict: fullItem.lgbm_prob >= currentThreshold ? "FRAUD" : "LEGITIMATE", probability: fullItem.lgbm_prob }
             },
-            shap: fullItem.shap
+            shap: fullItem.shap,
+            rules_triggered: fullItem.rules_triggered
         };
 
         currentPredictionData = resultObj;
@@ -846,11 +915,20 @@ async function renderDashboardCharts() {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } }
+                        legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            padding: 10
+                        }
                     },
                     scales: {
                         x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { display: false } },
-                        y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+                        y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
                 }
             });
@@ -882,7 +960,16 @@ async function renderDashboardCharts() {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } }
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            padding: 10
+                        }
                     },
                     cutout: '65%'
                 }
@@ -924,11 +1011,20 @@ async function renderDashboardCharts() {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } }
+                        legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 10 } } },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            padding: 10
+                        }
                     },
                     scales: {
                         x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { display: false } },
-                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+                        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
                 }
             });
@@ -1044,6 +1140,12 @@ function exportPredictionPDF() {
                     </table>
                 </div>
             </div>
+            ${data.rules_triggered && data.rules_triggered.length > 0 ? `
+            <h3>Triggered Heuristics Rules</h3>
+            <ul style="padding-left: 20px; font-size: 14px; line-height: 1.6; margin-bottom: 30px; list-style-type: none;">
+                ${data.rules_triggered.map(rule => `<li style="margin-bottom: 8px; color: #b45309; font-weight: 500; display: flex; align-items: center; gap: 8px;">⚠️ <span>${escapeHTML(rule)}</span></li>`).join('')}
+            </ul>
+            ` : ''}
             <h3>Model Classification Probabilities</h3>
             <div class="probabilities">
                 <div style="margin-bottom:15px;">
@@ -1254,7 +1356,17 @@ async function runBatchAnalysis() {
             resultsTableBody.innerHTML = '';
             finalResults.forEach(item => {
                 const row = document.createElement('tr');
-                const badgeClass = item.verdict === "FRAUD" ? "badge-history-fraud" : "badge-history-legit";
+                const isFraudVal = item.verdict === "FRAUD";
+                const badgeClass = isFraudVal ? "badge-history-fraud" : "badge-history-legit";
+                
+                if (isFraudVal) {
+                    row.style.background = 'rgba(239, 68, 68, 0.04)';
+                    row.style.borderLeft = '3px solid var(--danger)';
+                } else {
+                    row.style.background = 'rgba(16, 185, 129, 0.01)';
+                    row.style.borderLeft = '3px solid var(--success)';
+                }
+                
                 row.innerHTML = `
                     <td><code>${item.txn_id}</code></td>
                     <td>${item.cardholder}</td>
@@ -1409,6 +1521,7 @@ async function injectSimulatedTransaction() {
 
     } catch (err) {
         console.error("Simulated injection failure:", err);
+        showToast("Simulated injection failed. Authentication or server error.", "danger");
     }
 }
 
@@ -1416,8 +1529,8 @@ async function injectSimulatedTransaction() {
 // Phase 6: Global Feature Correlations Heatmap Matrix
 // ─────────────────────────────────────────────────────────────────────────────
 let globalExplainabilityLoaded = false;
-const heatmapFilter = document.getElementById('heatmap-feature-filter');
-const heatmapGrid = document.getElementById('heatmap-grid');
+let heatmapFilter = null;
+let heatmapGrid = null;
 
 async function loadHeatmapData() {
     if (globalExplainabilityLoaded) return;
@@ -1948,6 +2061,7 @@ function bindAllEvents() {
             }
             
             clearActivePresets();
+            updateActivePcaCount();
 
             verdictSection.classList.add('hidden');
             currentPredictionData = null;
@@ -2027,6 +2141,7 @@ function bindAllEvents() {
             }
 
             clearActivePresets();
+            updateActivePcaCount();
             showToast("Randomized transaction card parameters loaded!", "success");
         });
     }
@@ -2151,6 +2266,9 @@ document.addEventListener('DOMContentLoaded', () => {
     metricsTableBody = document.getElementById('metrics-table-body');
     importanceModelSelect = document.getElementById('importance-model-select');
 
+    heatmapFilter = document.getElementById('heatmap-feature-filter');
+    heatmapGrid = document.getElementById('heatmap-grid');
+
     sidebarLinks = document.querySelectorAll('.sidebar-link');
     viewPanels = document.querySelectorAll('.view-panel');
     pageTitle = document.getElementById('page-title');
@@ -2257,6 +2375,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // Mobile hamburger sidebar toggle (UX-09)
+    const hamburgerToggle = document.getElementById('hamburger-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (hamburgerToggle && sidebar) {
+        hamburgerToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sidebar.classList.toggle('mobile-open');
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (sidebar.classList.contains('mobile-open') && !sidebar.contains(e.target) && e.target !== hamburgerToggle) {
+                sidebar.classList.remove('mobile-open');
+            }
+        });
+        
+        sidebarLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                sidebar.classList.remove('mobile-open');
+            });
+        });
+    }
 
     // 7. Bind All Events (H-04)
     bindAllEvents();

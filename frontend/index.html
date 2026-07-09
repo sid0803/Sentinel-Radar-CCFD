@@ -69,7 +69,8 @@
         <div class="main-layout-container">
             <!-- Top Bar -->
             <header class="topbar">
-                <div class="topbar-left">
+                <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+                    <button type="button" id="hamburger-toggle" class="hamburger-btn" style="display: none;"><i class="fa-solid fa-bars"></i></button>
                     <h1 id="page-title">Dashboard Overview</h1>
                 </div>
                 <div class="topbar-right">
@@ -81,7 +82,7 @@
                     <!-- API Security Key Config -->
                     <div class="threshold-tuner" style="display: flex; align-items: center; gap: 6px;">
                         <span class="threshold-label" title="Developer API Security Key for authenticating with the Flask backend."><i class="fa-solid fa-key"></i> API Key:</span>
-                        <input type="password" id="api-key-input" placeholder="API Key..." style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; width: 140px; font-family: 'Fira Code', monospace; outline: none; transition: border-color 0.2s;" value="sentinel_dev_key_2026">
+                        <input type="password" id="api-key-input" placeholder="API Key..." value="sentinel_dev_key_2026">
                     </div>
                     <!-- Session Counters -->
                     <div class="session-stats-bar">
@@ -379,6 +380,10 @@
                                                     <option value="Gas & Utilities">Gas & Utilities</option>
                                                     <option value="Entertainment">Entertainment</option>
                                                     <option value="Services & Support">Services & Support</option>
+                                                    <option value="Crypto">Cryptocurrency</option>
+                                                    <option value="Gaming">Online Gaming / Gambling</option>
+                                                    <option value="Money Transfer">Money Transfer</option>
+                                                    <option value="Digital Wallet">Digital Wallet / Gift Cards</option>
                                                 </select>
                                             </div>
                                             <div class="input-group">
@@ -390,6 +395,7 @@
                                                     <option value="France">France</option>
                                                     <option value="Japan">Japan</option>
                                                     <option value="Australia">Australia</option>
+                                                    <option value="High-Risk Country">High-Risk Jurisdiction</option>
                                                 </select>
                                             </div>
                                             <div class="input-group">
@@ -399,6 +405,10 @@
                                                     <option value="Web Browser">Web Browser</option>
                                                     <option value="POS Terminal">POS Terminal</option>
                                                     <option value="Automated API">Automated API</option>
+                                                    <option value="Emulator">Android/iOS Emulator</option>
+                                                    <option value="Tor Bridge">Tor Bridge / VPN</option>
+                                                    <option value="Root/Jailbroken">Jailbroken/Rooted Device</option>
+                                                    <option value="Headless Browser">Headless Browser Client</option>
                                                 </select>
                                             </div>
                                         </div>
