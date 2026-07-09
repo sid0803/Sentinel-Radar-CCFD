@@ -6,6 +6,16 @@ let statsData = null;
 let currentPredictionData = null;
 let historyLog = [];
 let currentThreshold = 0.5;
+let apiKeyInput = null;
+
+// Auth helper
+function getAuthHeaders() {
+    const key = localStorage.getItem('sentinel_api_key') || 'sentinel_dev_key_2026';
+    return {
+        'Content-Type': 'application/json',
+        'X-API-Key': key
+    };
+}
 
 // Chart instances
 let shapChartInstance = null;
@@ -266,7 +276,7 @@ function setFormValues(params) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadPresets() {
     try {
-        const res = await fetch('/api/presets');
+        const res = await fetch('/api/presets', { headers: getAuthHeaders() });
         if (!res.ok) throw new Error("Could not load scenarios preset data");
         presetsData = await res.json();
         
@@ -421,6 +431,23 @@ function renderVerdict(data, inputParams) {
     updateTableModel('rf', data.models.rf.probability);
     updateTableModel('xgb', data.models.xgb.probability);
     updateTableModel('lgbm', data.models.lgbm.probability);
+
+    // Render Triggered Rules Heuristics
+    const rulesCard = document.getElementById('rules-card');
+    const rulesList = document.getElementById('rules-list');
+    if (rulesCard && rulesList) {
+        rulesList.innerHTML = '';
+        if (data.rules_triggered && data.rules_triggered.length > 0) {
+            rulesCard.classList.remove('hidden');
+            data.rules_triggered.forEach(reason => {
+                const li = document.createElement('li');
+                li.textContent = reason;
+                rulesList.appendChild(li);
+            });
+        } else {
+            rulesCard.classList.add('hidden');
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,7 +542,7 @@ function generateSHAPSummary(shapValues, modelKey) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadSessionStats() {
     try {
-        const res = await fetch(`/api/session-stats?threshold=${currentThreshold}`);
+        const res = await fetch(`/api/session-stats?threshold=${currentThreshold}`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error();
         const data = await res.json();
 
@@ -537,7 +564,7 @@ async function loadSessionStats() {
 
 async function loadHistoryQueue() {
     try {
-        const res = await fetch('/api/history');
+        const res = await fetch('/api/history', { headers: getAuthHeaders() });
         if (!res.ok) throw new Error();
         historyLog = await res.json();
         
@@ -684,7 +711,7 @@ async function loadTransactionIntoAnalyzer(item) {
     if (!item || !item.txn_id) return;
     
     try {
-        const res = await fetch(`/api/transaction/${item.txn_id}`);
+        const res = await fetch(`/api/transaction/${item.txn_id}`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error("Failed to load details from server.");
         const fullItem = await res.json();
         
@@ -740,7 +767,10 @@ async function loadTransactionIntoAnalyzer(item) {
 
 async function clearDatabase() {
     try {
-        const res = await fetch('/api/history/clear', { method: 'POST' });
+        const res = await fetch('/api/history/clear', { 
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error();
         
         showToast("Session audit database cleared.", "success");
@@ -756,7 +786,7 @@ async function clearDatabase() {
 // ─────────────────────────────────────────────────────────────────────────────
 async function renderDashboardCharts() {
     try {
-        const res = await fetch(`/api/analytics?threshold=${currentThreshold}`);
+        const res = await fetch(`/api/analytics?threshold=${currentThreshold}`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error();
         const analytics = await res.json();
 
@@ -1194,7 +1224,7 @@ async function runBatchAnalysis() {
             const chunk = list.slice(i, i + chunkSize);
             const res = await fetch('/api/predict/batch', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     transactions: chunk,
                     threshold: currentBatchThreshold
@@ -1239,7 +1269,7 @@ async function runBatchAnalysis() {
                 row.querySelector('.btn-inspect-batch').addEventListener('click', async (e) => {
                     e.preventDefault();
                     try {
-                        const hRes = await fetch('/api/history');
+                        const hRes = await fetch('/api/history', { headers: getAuthHeaders() });
                         if (!hRes.ok) throw new Error();
                         const hList = await hRes.json();
                         const match = hList.find(x => x.txn_id === item.txn_id);
@@ -1359,7 +1389,7 @@ async function injectSimulatedTransaction() {
     try {
         const response = await fetch('/api/predict', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
 
@@ -1392,7 +1422,7 @@ const heatmapGrid = document.getElementById('heatmap-grid');
 async function loadHeatmapData() {
     if (globalExplainabilityLoaded) return;
     try {
-        const res = await fetch('/api/global-explainability');
+        const res = await fetch('/api/global-explainability', { headers: getAuthHeaders() });
         if (!res.ok) throw new Error();
         const data = await res.json();
 
@@ -1539,7 +1569,7 @@ if (queueRefreshBtn) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadStats() {
     try {
-        const res = await fetch('/api/stats');
+        const res = await fetch('/api/stats', { headers: getAuthHeaders() });
         if (!res.ok) throw new Error();
         statsData = await res.json();
         
@@ -1860,7 +1890,7 @@ function bindAllEvents() {
             try {
                 const response = await fetch('/api/predict', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(payload)
                 });
 
@@ -2142,6 +2172,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnCopyCurl = document.getElementById('btn-copy-curl');
     btnCopyJson = document.getElementById('btn-copy-json');
+
+    apiKeyInput = document.getElementById('api-key-input');
+    if (apiKeyInput) {
+        const savedKey = localStorage.getItem('sentinel_api_key');
+        if (savedKey) apiKeyInput.value = savedKey;
+        apiKeyInput.addEventListener('input', (e) => {
+            localStorage.setItem('sentinel_api_key', e.target.value.trim());
+        });
+    }
 
     // 1. Setup UI Slider fields
     initSliders();

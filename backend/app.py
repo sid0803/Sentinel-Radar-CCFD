@@ -16,12 +16,31 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import shap
 import uuid
+from dotenv import load_dotenv
+
+# Load env variables from project root
+dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path)
+else:
+    load_dotenv()
 
 app = Flask(__name__, static_folder='../frontend')
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}})
 
+# Configuration from env variables
+SECRET_KEY = os.getenv('SECRET_KEY', '9e10287dfb38d3883b4c10c14c53846e')
+API_KEY = os.getenv('API_KEY', 'sentinel_dev_key_2026')
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
-DB_PATH = os.path.join(os.path.dirname(__file__), 'fraud_detection.db')
+env_db_path = os.getenv('DB_PATH', 'fraud_detection.db')
+if os.path.isabs(env_db_path):
+    DB_PATH = env_db_path
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), env_db_path)
+
+allowed_origins_str = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(',')]
+
+CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
 # Initialize SQLite database schema
 def init_db():
@@ -47,9 +66,15 @@ def init_db():
             xgb_prob REAL,
             lgbm_prob REAL,
             inputs_json TEXT,
-            shap_json TEXT
+            shap_json TEXT,
+            rules_triggered_json TEXT
         )
     ''')
+    # Dynamic schema migration for older DB files
+    try:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN rules_triggered_json TEXT")
+    except sqlite3.OperationalError:
+        pass # Column already exists
     conn.commit()
     conn.close()
 
@@ -59,6 +84,81 @@ scaler = None
 precomputed_stats = None
 feature_names = []
 explainers = {}
+
+# -----------------------------------------------------------------------------
+# API Key Middleware
+# -----------------------------------------------------------------------------
+@app.before_request
+def check_api_key():
+    # Bypass for static frontend pages/files
+    if not request.path.startswith('/api/'):
+        return
+    # Bypass testing suite or health endpoint
+    if app.config.get('TESTING') or request.path == '/api/health':
+        return
+    
+    auth_key = request.headers.get('X-API-Key')
+    if auth_key != API_KEY:
+        return jsonify({"error": "Unauthorized. Invalid or missing X-API-Key header."}), 401
+
+# -----------------------------------------------------------------------------
+# Metadata Heuristics Rule Engine
+# -----------------------------------------------------------------------------
+def evaluate_metadata_rules(card_number, merchant, category, country, device, amount):
+    """
+    Industry Heuristics Engine. Checks transaction metadata fields for common fraud signals.
+    Returns: (risk_score, triggered_reasons)
+    """
+    risk_score = 0.0
+    reasons = []
+    
+    # 1. Transaction Amount thresholds
+    if amount > 5000:
+        risk_score += 0.4
+        reasons.append("High amount threshold exceeded (> $5,000)")
+    elif amount > 1000:
+        risk_score += 0.15
+        reasons.append("Elevated amount threshold exceeded (> $1,000)")
+        
+    # 2. High-risk category merchants
+    high_risk_categories = ['crypto', 'gaming', 'money transfer', 'gambling', 'gift cards', 'digital wallet']
+    if any(hrc in category.lower() for hrc in high_risk_categories):
+        risk_score += 0.25
+        reasons.append(f"High-risk merchant category: {category}")
+        
+    # 3. Suspicious device fingerprint
+    suspicious_devices = ['emulator', 'unknown device', 'bot client', 'headless browser', 'tor bridge', 'root/jailbroken']
+    if any(sd in device.lower() for sd in suspicious_devices):
+        risk_score += 0.3
+        reasons.append(f"Suspicious device fingerprint: {device}")
+        
+    # 4. Location risk
+    high_risk_countries = ['unknown', 'high-risk country']
+    if any(hrc in country.lower() for hrc in high_risk_countries):
+        risk_score += 0.2
+        reasons.append(f"High-risk transaction destination: {country}")
+        
+    # 5. Velocity check (within 5 minutes)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) FROM transactions 
+            WHERE card_number = ? AND timestamp >= datetime('now', '-5 minutes')
+        ''', (card_number,))
+        recent_count = cursor.fetchone()[0]
+        conn.close()
+        
+        if recent_count >= 3:
+            risk_score += 0.45
+            reasons.append(f"High velocity trigger: {recent_count} transactions in last 5 minutes")
+    except Exception as e:
+        print(f"[RULE ENGINE ERROR] Velocity check failed: {e}")
+        
+    # Clamp final score
+    risk_score = min(1.0, max(0.0, risk_score))
+    return risk_score, reasons
+
 
 # -----------------------------------------------------------------------------
 # Initialize & Load Models
@@ -177,10 +277,21 @@ def predict():
                 "probability": round(prob, 4)
             }
 
-        # Calculate Ensemble Verdict
+        # Calculate Ensemble Verdict with Rule-Based Heuristics
         avg_prob = sum(probabilities) / len(probabilities)
-        ensemble_verdict = "FRAUD" if votes >= 2 else "LEGITIMATE"
-        ensemble_conf = avg_prob if ensemble_verdict == "FRAUD" else 1.0 - avg_prob
+        
+        # Evaluate metadata rules
+        rules_risk, rules_triggered = evaluate_metadata_rules(
+            card_number, merchant, category, country, device, float(data.get('Amount', 0))
+        )
+        
+        # Combined risk metric (70% ML, 30% Rules Risk heuristics)
+        combined_prob = (0.7 * avg_prob) + (0.3 * rules_risk)
+        
+        # Threshold consensus check
+        is_fraud_flagged = (votes >= 2) or (combined_prob >= threshold) or (rules_risk >= 0.8)
+        ensemble_verdict = "FRAUD" if is_fraud_flagged else "LEGITIMATE"
+        ensemble_conf = combined_prob if ensemble_verdict == "FRAUD" else 1.0 - combined_prob
         
         # Calculate SHAP explainability
         shap_values_dict = {}
@@ -236,14 +347,15 @@ def predict():
                     txn_id, card_number, cardholder, amount, txn_time,
                     merchant, category, country, device,
                     ensemble_verdict, ensemble_confidence, ensemble_votes,
-                    rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json,
+                    rules_triggered_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 txn_id, card_number, cardholder, float(data['Amount']), int(data['Time']),
                 merchant, category, country, device,
                 ensemble_verdict, float(ensemble_conf), int(votes),
                 float(results['rf']['probability']), float(results['xgb']['probability']), float(results['lgbm']['probability']),
-                json.dumps(data), json.dumps(shap_values_dict)
+                json.dumps(data), json.dumps(shap_values_dict), json.dumps(rules_triggered)
             ))
             conn.commit()
         except Exception as db_err:
@@ -266,7 +378,9 @@ def predict():
                 "votes": votes
             },
             "models": results,
-            "shap": shap_values_dict
+            "shap": shap_values_dict,
+            "rules_triggered": rules_triggered,
+            "rules_risk_score": round(rules_risk, 4)
         }
 
         return jsonify(response)
@@ -289,6 +403,13 @@ def get_transaction(txn_id):
         if not row:
             return jsonify({"error": "Transaction not found."}), 404
             
+        rules_trig = []
+        try:
+            if "rules_triggered_json" in row.keys() and row["rules_triggered_json"]:
+                rules_trig = json.loads(row["rules_triggered_json"])
+        except Exception:
+            pass
+
         return jsonify({
             "id": row["id"],
             "txn_id": row["txn_id"],
@@ -308,7 +429,8 @@ def get_transaction(txn_id):
             "xgb_prob": row["xgb_prob"],
             "lgbm_prob": row["lgbm_prob"],
             "inputs": json.loads(row["inputs_json"]) if row["inputs_json"] else {},
-            "shap": json.loads(row["shap_json"]) if row["shap_json"] else {}
+            "shap": json.loads(row["shap_json"]) if row["shap_json"] else {},
+            "rules_triggered": rules_trig
         })
     except Exception as e:
         return jsonify({"error": "Failed to load transaction details."}), 500
@@ -509,8 +631,20 @@ def predict_batch():
                 if p_lgb >= threshold: votes += 1
                 
                 avg_prob = (p_rf + p_xgb + p_lgb) / 3
-                ensemble_verdict = "FRAUD" if votes >= 2 else "LEGITIMATE"
-                ensemble_conf = avg_prob if ensemble_verdict == "FRAUD" else 1.0 - avg_prob
+                
+                meta = metadata_list[i]
+                data_raw = batch_inputs[i]
+                
+                # Rule-based heuristics for batch items
+                r_risk, r_trig = evaluate_metadata_rules(
+                    meta["card_number"], meta["merchant"], meta["category"], meta["country"], meta["device"], float(data_raw["Amount"])
+                )
+                
+                combined_prob = (0.7 * avg_prob) + (0.3 * r_risk)
+                is_fraud_flagged = (votes >= 2) or (combined_prob >= threshold) or (r_risk >= 0.8)
+                
+                ensemble_verdict = "FRAUD" if is_fraud_flagged else "LEGITIMATE"
+                ensemble_conf = combined_prob if ensemble_verdict == "FRAUD" else 1.0 - combined_prob
                 
                 if ensemble_verdict == "FRAUD":
                     total_fraud += 1
@@ -518,22 +652,21 @@ def predict_batch():
                     total_legit += 1
                     
                 txn_id = f"TXN-{uuid.uuid4().hex[:8].upper()}"
-                meta = metadata_list[i]
-                data_raw = batch_inputs[i]
                 
                 cursor.execute('''
                     INSERT INTO transactions (
                         txn_id, card_number, cardholder, amount, txn_time,
                         merchant, category, country, device,
                         ensemble_verdict, ensemble_confidence, ensemble_votes,
-                        rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        rf_prob, xgb_prob, lgbm_prob, inputs_json, shap_json,
+                        rules_triggered_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     txn_id, meta["card_number"], meta["cardholder"], data_raw['Amount'], int(data_raw['Time']),
                     meta["merchant"], meta["category"], meta["country"], meta["device"],
                     ensemble_verdict, float(ensemble_conf), int(votes),
                     p_rf, p_xgb, p_lgb,
-                    json.dumps(txns[i]), json.dumps({})
+                    json.dumps(txns[i]), json.dumps({}), json.dumps(r_trig)
                 ))
                 
                 results.append({
@@ -633,6 +766,17 @@ def get_global_explainability():
             "feature_names": feature_names
         })
     return jsonify({"error": "Global explainability stats not loaded."}), 500
+
+# -----------------------------------------------------------------------------
+# Health Check Endpoint
+# -----------------------------------------------------------------------------
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        "status": "healthy",
+        "api_key_configured": API_KEY != 'sentinel_dev_key_2026',
+        "models_loaded": list(models.keys())
+    })
 
 # -----------------------------------------------------------------------------
 # Main

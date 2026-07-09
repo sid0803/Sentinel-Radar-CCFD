@@ -1,7 +1,12 @@
 # 🛡️ Sentinel-Radar-CCFD
 ### Enterprise-Grade Credit Card Fraud Detection & Risk Analytics Platform
 
-Sentinel-Radar-CCFD is a high-performance, production-ready Credit Card Fraud Detection and risk analytics console. Designed to mimic top-tier financial fraud desks (like Stripe Radar or Sift), this platform integrates three state-of-the-art machine learning classifiers via an ensemble consensus system, coupled with rich explainable AI (SHAP), a live feed simulator, and batch-upload processing.
+[![CI Pipeline](https://github.com/sid0803/Sentinel-Radar-CCFD/actions/workflows/ci.yml/badge.svg)](https://github.com/sid0803/Sentinel-Radar-CCFD/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Framework-Flask-lightgrey.svg)](https://flask.palletsprojects.com/)
+
+Sentinel-Radar-CCFD is a high-performance, production-ready Credit Card Fraud Detection and risk analytics console. Designed to mimic top-tier financial fraud desks (like Stripe Radar or Sift), this platform integrates three state-of-the-art machine learning classifiers via an ensemble consensus system, coupled with a real-time heuristics risk engine, rich explainable AI (SHAP), a live feed simulator, and batch-upload processing.
 
 ---
 
@@ -11,10 +16,12 @@ Sentinel-Radar-CCFD is a high-performance, production-ready Credit Card Fraud De
     *   **Random Forest** (Depth-wise stability)
     *   **XGBoost** (Gradient-boosted decision trees)
     *   **LightGBM** (Leaf-wise speed optimization)
+*   **⚙️ Rule-Based Heuristics Risk Engine:** Inspects metadata fields (Amount, Category, Device, Country, Velocity) against fraud heuristics. Combines with ML scores (70% ML, 30% Rules) to eliminate "black-box" limitations.
 *   **🧠 Explainable AI (SHAP & Heatmaps):** Inline SHAP visualization detailing exactly which PCA-transformed features push transaction scoring towards *Approved* (Legitimate) or *Flagged* (Fraud), plus global feature correlation matrix heatmaps.
 *   **📊 Dynamic Sensitivity Tuner:** Adjustable threshold slider (from 30% to 90%) allowing risk analysts to dynamically change system sensitivity, recalculating verdicts retroactively across the active session and review logs.
 *   **🔄 Live Feed Simulator:** Fully automated simulated payment stream that auto-generates realistic synthetic transactions (30% fraud bias) to stress-test workflows and display live telemetry updates.
 *   **📁 Batch processing Terminal:** Drag-and-drop CSV parser and JSON paste terminal that processes up to 100 transactions/second with custom sensitivity parameters.
+*   **🔒 Hardened API Gateway:** Protects all endpoints with environment-configurable API Key headers (`X-API-Key`) and disables dangerous debug modes in production.
 *   **💾 Persistent SQLite Ledger:** Full SQLite backend auditing framework capturing transactional parameters, user metadata (names, devices, locations, merchants), and exact feature importance vectors.
 *   **📑 Audit Reports:** One-click CSV audit ledger downloader and interactive single-transaction PDF risk report generator.
 
@@ -24,23 +31,26 @@ Sentinel-Radar-CCFD is a high-performance, production-ready Credit Card Fraud De
 
 ```mermaid
 graph TD
-    A[Interactive Web Console] -->|JSON POST| B(Flask REST API Server)
+    A[Interactive Web Console] -->|JSON POST + API Key| B(Flask REST API Server)
     B -->|Pre-process & Scale| C[Numerical Scaler]
+    B -->|Rule Engine Heuristics| K[Heuristics Risk Engine]
     C -->|Run Parallel Predictions| D{Model Ensemble}
     D -->|RF Classifier| E[Probability #1]
     D -->|XGBoost Model| F[Probability #2]
     D -->|LightGBM Model| G[Probability #3]
     E & F & G -->|Majority Vote Consensus| H[Decision Engine]
-    H -->|Calculate Shap Values| I[SHAP Explainer Engine]
-    H -->|Write Audit Trail| J[(SQLite Persistent DB)]
-    H & I -->|Return Response Payload| A
+    H & K -->|Weighted Integration| L[Weighted Risk Aggregator]
+    L -->|Calculate Shap Values| I[SHAP Explainer Engine]
+    L -->|Write Audit Trail| J[(SQLite Persistent DB)]
+    L & I -->|Return Response Payload| A
 ```
 
 ### Backend
-*   **Core:** Python (Flask, Flask-CORS)
+*   **Core:** Python (Flask, Flask-CORS, python-dotenv)
 *   **ML Classifiers:** Scikit-Learn (Random Forest), XGBoost, LightGBM
 *   **AI Interpretability:** SHAP (Shapley Additive exPlanations)
 *   **Database:** SQLite3
+*   **Testing:** Pytest, Pytest-Cov
 
 ### Frontend
 *   **Core:** Vanilla HTML5, CSS3, & Javascript (Modern Single Page App)
@@ -59,7 +69,7 @@ graph TD
 ### Setup & Run
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/YOUR_USERNAME/Sentinel-Radar-CCFD.git
+    git clone https://github.com/sid0803/Sentinel-Radar-CCFD.git
     cd Sentinel-Radar-CCFD
     ```
 
@@ -77,37 +87,64 @@ graph TD
     pip install -r backend/requirements.txt
     ```
 
-4.  **Train Models (Optional - Pre-trained models included in `backend/models`):**
-    If you wish to re-train the models with your own dataset, drop your `creditcard.csv` in `backend/` and run:
+4.  **Configure Environment:**
+    Copy the template environment file to `.env`:
+    ```bash
+    cp .env.example .env
+    ```
+    *(You can customize `API_KEY` or `DB_PATH` in `.env`)*
+
+5.  **Train Models (Optional - Pre-trained models included in `backend/models`):**
     ```bash
     python backend/train_models.py
     ```
 
-5.  **Launch the Server:**
+6.  **Launch the Server:**
     ```bash
     python backend/app.py
     ```
 
-6.  **Access the Console:**
-    Open your browser and navigate to **`http://localhost:5000`**
+7.  **Access the Console:**
+    Open your browser and navigate to **`http://localhost:5000`** and enter the API key in the topbar input to authenticate (Defaults to `sentinel_dev_key_2026`).
+
+---
+
+## 🧪 Testing
+
+The backend includes a comprehensive `pytest` unit test suite to test all API routes, authentication gates, and mock models behavior.
+
+To run tests:
+```bash
+# Activate virtualenv first
+cd backend
+pytest -v
+```
 
 ---
 
 ## 🔌 API Developer Reference
 
-Sentinel-Radar-CCFD includes standard REST API endpoints. You can run integration curl commands directly into the server:
+All API requests must include the `X-API-Key` authentication header matching the key configured in `.env`.
 
 ### 1. Run Single Transaction Prediction
 *   **Endpoint:** `POST /api/predict`
+*   **Headers:**
+    *   `Content-Type: application/json`
+    *   `X-API-Key: sentinel_dev_key_2026`
 *   **Sample Command:**
     ```bash
     curl -X POST http://localhost:5000/api/predict \
       -H "Content-Type: application/json" \
+      -H "X-API-Key: sentinel_dev_key_2026" \
       -d '{
         "Amount": 142.50,
         "Time": 43200,
         "Cardholder": "John Doe",
+        "Card_Number": "4242 4242 4242 4242",
         "Merchant": "Amazon Web Services",
+        "Category": "Online",
+        "Country": "US",
+        "Device": "Web Browser",
         "V1": -1.35, "V2": 0.42, "V3": -0.87,
         "V4": 1.05, "V5": 0.12, "V6": -0.34,
         "V7": 0.95, "V8": 0.08, "V9": -0.15,
