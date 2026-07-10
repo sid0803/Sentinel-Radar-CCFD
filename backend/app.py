@@ -102,6 +102,12 @@ def check_api_key():
     if auth_key != API_KEY:
         return jsonify({"error": "Unauthorized. Invalid or missing X-API-Key header."}), 401
 
+@app.after_request
+def add_header(response):
+    """Disable caching for static files to ensure updates are served instantly."""
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
 # -----------------------------------------------------------------------------
 # Metadata Heuristics Rule Engine
 # -----------------------------------------------------------------------------
