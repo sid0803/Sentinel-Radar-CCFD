@@ -4,13 +4,19 @@ This comprehensive document serves as the project report and system evaluation f
 
 ---
 
+## 1. Project Overview & Objectives
+
+Credit card fraud is a major challenge for the global financial sector, leading to billions of dollars in annual losses. Traditional anti-fraud systems rely on static, human-defined rules that cannot keep pace with changing fraud patterns. Conversely, pure machine learning models can struggle to adapt to new fraud vectors without retraining.
+
+The **Sentinel Radar Credit Card Fraud Detection (CCFD)** platform resolves these limitations using a hybrid architecture. It combines **Machine Learning Ensemble Classifiers** (Supervised Learning) with an **Industry Heuristics Rule Engine** (Expert Rules) and **Explainable AI (SHAP)**. This approach ensures high detection accuracy, real-time adaptability, and transparent decision-making.
+
+---
+
 ## 4. Proposed Methodology
 
 ### 4.1 Architecture / Flow Diagram
 
-The Sentinel Radar CCFD system uses a multi-layered hybrid architecture combining **Machine Learning Ensemble Classifiers** (Supervised Learning) with an **Industry Heuristics Rule Engine** (Expert Rules) and **Explainable AI (SHAP)**.
-
-Below is the execution and data flow diagram of the end-to-end transaction review process:
+The platform processes transaction data through a multi-layered pipeline to ensure secure, accurate, and explainable risk evaluations.
 
 ```mermaid
 graph TD
@@ -62,184 +68,98 @@ graph TD
 #### 4.1.1 Core Architecture Components in Detail
 
 1. **Frontend Presentation Layer (Single-Page Interface):**
-   The user interface is designed as an interactive, single-page application (SPA) using vanilla HTML5, CSS3, and ES6+ JavaScript. It features responsive layouts to support viewports ranging from mobile phones to high-resolution desktop monitors. The interface accepts 30 baseline features representing card transactions: `Amount`, `Time`, and 28 anonymized PCA dimensions (`V1` to `V28`). It handles real-time input validation, interactive UI changes (e.g., threat thermometer updates, glassmorphism animations), and displays performance charts (ROC Curve, Precision-Recall Curve, Feature Importance).
-
+   The user interface is built as a single-page application (SPA) using HTML5, CSS3, and ES6+ JavaScript. It captures transaction inputs, including `Amount`, `Time`, and 28 anonymized PCA dimensions (`V1` to `V28`), and sends them to the backend server.
 2. **Security Gateway Layer (API Key Auth):**
-   The backend endpoints are secured using API Key authentication middleware implemented in Flask. Every API request must carry a valid `X-API-Key` header. If the key is missing or invalid, the middleware intercepts the call before it reaches the classifiers, returning a `401 Unauthorized` response. The client frontend handles this failure using a fetch interceptor, triggering visual alert banners and shaking the input container to alert the operator.
-
+   Every API request must carry a valid `X-API-Key` header. The Flask backend validates this header against the configured key. If validation fails, the server returns a `401 Unauthorized` response, prompting the frontend to display an alert.
 3. **Inference Pipeline & Normalization Layer:**
-   When a payload is approved by the security gateway, the inputs are converted into a structured `pandas` DataFrame in the exact training order. The features `Time` and `Amount` are scaled using a pre-trained `StandardScaler` loaded from `scaler.pkl`. Scaling is critical because classifiers (especially distance-based or regularized models) are sensitive to feature magnitudes, and raw amounts or times could otherwise skew the decision boundaries.
-
-4. **Layer 1: Ensemble Modeling Core (Voting System):**
-   The prediction pipeline uses three distinct machine learning models to classify the input:
-   *   **Random Forest Classifier:** A bagging-based ensemble model that trains multiple independent decision trees on bootstrapped datasets. It determines the final classification using majority voting, which reduces model variance and prevents overfitting.
-   *   **XGBoost (Extreme Gradient Boosting) Classifier:** A boosting-based model that builds trees sequentially. Each tree is trained to correct the residual errors of its predecessor. XGBoost uses L1 and L2 regularization to control model complexity and improve generalization.
-   *   **LightGBM (Light Gradient Boosting Machine) Classifier:** A gradient-boosting framework optimized for performance and memory efficiency. Unlike standard depth-wise tree models, LightGBM grows trees leaf-wise (best-first), finding splits that yield the largest loss reduction. It uses Gradient-based One-Side Sampling (GOSS) and Exclusive Feature Bundling (EFB) to speed up training on large datasets.
-   
-   The ensemble aggregates the individual probabilities $P_{\text{RF}}$, $P_{\text{XGB}}$, and $P_{\text{LGBM}}$ by calculating their mean:
-   $$P_{\text{ML}} = \frac{P_{\text{RF}} + P_{\text{XGB}} + P_{\text{LGBM}}}{3}$$
-   This average machine learning probability represents the core classification output.
-
-5. **Layer 2: Industry Heuristics Rule Engine:**
-   Machine learning models are trained on historical datasets and may fail to identify real-world, context-dependent fraud vectors. To address this, the system incorporates an expert rules heuristics engine:
-   *   **Rule #1: High Amount Threshold:** Flags transaction amounts exceeding $\$5,000$ (adds $+0.40$ risk) or exceeding $\$1,000$ (adds $+0.15$ risk).
-   *   **Rule #2: Merchant Category Risk:** Inspects the merchant type. High-risk fields (e.g., cryptocurrency exchanges, gambling portals, money transfers) add $+0.25$ risk.
-   *   **Rule #3: Suspicious Device Fingerprint:** Inspects client signatures. Emulators, headless browsers, or tor endpoints add $+0.30$ risk.
-   *   **Rule #4: Geographical Jurisdictions:** Compares transaction countries against known high-risk jurisdictions, adding $+0.20$ risk if matched.
-   *   **Rule #5: Velocity Checks:** Counts occurrences of the card number within the last 5 minutes by querying the SQLite database. If the count exceeds 3, it signals a potential card-testing attack, adding $+0.45$ risk.
-   
-   The rules risk scores are aggregated and clamped between $0.0$ and $1.0$:
-   $$\text{Risk}_{\text{Rules}} = \min(1.0, \text{Score}_{\text{Amount}} + \text{Score}_{\text{Category}} + \text{Score}_{\text{Device}} + \text{Score}_{\text{Country}} + \text{Score}_{\text{Velocity}})$$
-
-6. **Layer 3: Combined Risk Consensus Resolver:**
-   The system blends machine learning classifications and heuristic rules using a weighted sum model (70% ML, 30% Rules Heuristics):
-   $$\text{Probability}_{\text{Combined}} = 0.70 \times P_{\text{ML}} + 0.30 \times \text{Risk}_{\text{Rules}}$$
-   The final transaction verdict is resolved based on three criteria:
-   $$\text{Verdict} = \begin{cases} \text{FRAUD} & \text{if } \text{Votes}_{\text{ML}} \ge 2 \text{ or } \text{Probability}_{\text{Combined}} \ge \text{Threshold} \text{ or } \text{Risk}_{\text{Rules}} \ge 0.80 \\ \text{LEGITIMATE} & \text{otherwise} \end{cases}$$
-   This multi-layered logic protects the system against zero-day fraud vectors (handled by heuristics) while maintaining the precision of ML models for standard transactions.
-
-7. **Layer 4: Explainable AI (XAI) Attribution:**
-   To provide transparency, the system computes SHAP (SHapley Additive exPlanations) values for the ensemble predictions. It uses a `TreeExplainer` optimized for tree-based models to measure the contribution of each feature to the final risk score. The calculated attribution weights are returned to the client and rendered in an interactive chart, helping operators understand *why* a transaction was flagged as suspicious.
+   Incoming payloads are converted into a structured `pandas` DataFrame. The features `Time` and `Amount` are normalized using a pre-trained `StandardScaler` loaded from `scaler.pkl` to match the training data distribution.
+4. **Ensemble Modeling Core:**
+   The prediction pipeline uses three machine learning models to classify the input:
+   *   **Random Forest Classifier:** A bagging ensemble model that trains multiple independent decision trees on bootstrapped datasets.
+   *   **XGBoost Classifier:** A gradient-boosting model that builds trees sequentially, minimizing residual errors.
+   *   **LightGBM Classifier:** A gradient-boosting framework optimized for performance and memory efficiency.
+5. **Heuristic Rule Engine:**
+   An expert rules engine runs alongside the machine learning models to catch immediate, high-risk fraud signals:
+   *   *High Amount Threshold:* Flags transactions exceeding $\$5,000$ ($+0.40$ risk) or $\$1,000$ ($+0.15$ risk).
+   *   *Merchant Category Risk:* Adds $+0.25$ risk for merchant types like cryptocurrency exchanges or gambling portals.
+   *   *Suspicious Device Fingerprint:* Adds $+0.30$ risk for emulators, headless browsers, or tor endpoints.
+   *   *Geographical Jurisdictions:* Adds $+0.20$ risk if the destination country is flagged as high-risk.
+   *   *Velocity Checks:* Counts card usage within the last 5 minutes. If it exceeds 3 transactions, it signals a potential card-testing attack ($+0.45$ risk).
 
 ---
 
-### 4.2 Machine Learning Modeling & SHAP Theory
+### 4.2 Machine Learning Theory
 
-To understand how the system evaluates risk, we must look at the mathematical foundations of the models and the explainability framework.
+#### 4.2.1 Random Forest Classifier
+Random Forest is a bagging ensemble method. It trains $B$ decision trees $\{T_1, T_2, \dots, T_B\}$ on bootstrapped samples of the dataset. For a classification problem, the final output is determined by majority voting:
+$$\hat{f}_{\text{RF}}(x) = \text{argmax}_{c \in C} \sum_{b=1}^{B} I\left(T_b(x) = c\right)$$
+where $I$ is an indicator function. This random split selection reduces correlation between individual trees, decreasing the ensemble's variance without increasing its bias.
 
-#### 4.2.1 Tree-Based Machine Learning Models
+#### 4.2.2 XGBoost (Extreme Gradient Boosting)
+XGBoost builds trees sequentially. At each iteration $t$, a tree $f_t(x)$ is trained to minimize the regularized objective function:
+$$\mathcal{L}^{(t)} = \sum_{i=1}^{n} l\left(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)\right) + \Omega(f_t)$$
+where $\Omega(f) = \gamma T + \frac{1}{2} \lambda \sum_{j=1}^{T} w_j^2$ is the regularization penalty. XGBoost uses a second-order Taylor expansion to approximate the objective, which simplifies optimization during split finding:
+$$\mathcal{L}^{(t)} \approx \sum_{i=1}^{n} \left[ l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i) \right] + \Omega(f_t)$$
+where $g_i = \partial_{\hat{y}^{(t-1)}} l(y_i, \hat{y}_i^{(t-1)})$ and $h_i = \partial^2_{\hat{y}^{(t-1)}} l(y_i, \hat{y}_i^{(t-1)})$.
 
-*   **Random Forest:**
-    Random Forest reduces variance by averaging the predictions of $B$ independent decision trees trained on bootstrapped samples of the training data. For a given input $x$, the individual tree prediction is $T_b(x)$. The ensemble prediction is:
-    $$\hat{f}_{\text{RF}}(x) = \frac{1}{B} \sum_{b=1}^{B} T_b(x)$$
-    This approach makes the model highly resilient to noise and outliers in individual features.
-
-*   **XGBoost (Extreme Gradient Boosting):**
-    XGBoost builds trees sequentially. At each step $t$, a new tree $f_t(x)$ is trained to minimize a regularized objective function:
-    $$\mathcal{L}^{(t)} = \sum_{i=1}^{n} l\left(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)\right) + \Omega(f_t)$$
-    where $\Omega(f) = \gamma T + \frac{1}{2} \lambda \sum_{j=1}^{T} w_j^2$ is the regularization penalty on the number of leaves $T$ and leaf weights $w$. XGBoost uses a second-order Taylor expansion to approximate this objective, enabling fast, parallelized tree construction.
-
-*   **LightGBM:**
-    LightGBM optimizes the boosting process using leaf-wise tree growth. While depth-wise growth splits all nodes on a level, leaf-wise growth splits only the node that yields the maximum loss reduction. LightGBM also uses Gradient-based One-Side Sampling (GOSS) to focus on data points with larger gradients (errors) and Exclusive Feature Bundling (EFB) to merge mutually exclusive features, reducing the dimensionality of sparse datasets.
-
-#### 4.2.2 SHAP (SHapley Additive exPlanations)
-
-SHAP values explain predictions by allocating credit to each feature based on cooperative game theory. Let $F$ be the set of all input features. The SHAP value $\phi_i$ of feature $i$ measures its contribution to the model output $f(x)$:
-$$\phi_i(x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
-where $f_x(S)$ is the expected model output given only the subset of features $S$.
-
-SHAP values offer three key mathematical properties:
-1.  **Local Accuracy (Efficiency):** The sum of the attributions matches the difference between the model's prediction and the base value (expected output):
-    $$\sum_{i=1}^{|F|} \phi_i(x) = f(x) - E[f(X)]$$
-2.  **Missingness:** A feature that has no impact on a prediction receives a SHAP value of zero:
-    $$x_i = \text{missing} \implies \phi_i(x) = 0$$
-3.  **Consistency:** If a model changes so that a feature's marginal contribution increases or stays the same, that feature's SHAP value will not decrease.
-
-Using SHAP explainers in credit card fraud detection bridges the gap between complex black-box machine learning models and human operators, providing clear, actionable insights for risk audits.
-
----
-
-### 4.3 Algorithm (Pseudo-Code)
-
-Below is the pseudo-code for the ensemble classification algorithm blended with metadata heuristic scoring:
+#### 4.2.3 LightGBM (Light Gradient Boosting Machine)
+LightGBM optimizes tree growth using leaf-wise (best-first) node splitting. While standard depth-wise algorithms split all nodes on a level, leaf-wise growth splits only the node that yields the largest loss reduction:
 
 ```text
-ALGORITHM: CCFD-Ensemble-Prediction
-INPUT: 
-    transaction_data: Dict containing {Time, Amount, V1...V28, Card_Number, Merchant, Category, Country, Device}
-    alert_threshold: Float [0.30 - 0.90] (default: 0.50)
-OUTPUT:
-    prediction_result: Dict containing {verdict, confidence, model_probabilities, rules_triggered, shap_values}
+Depth-Wise (Level-Wise) Split Growth:
+      [Root]
+      /    \
+   [Node]  [Node]     <-- Split every node on this level
+   /    \  /    \
+  []    [] []   []
 
-BEGIN
-    // Step 1: Preprocessing and Normalization
-    scaled_features <- COPY transaction_data
-    scaled_features['Time', 'Amount'] <- Transform_With_Scaler(transaction_data['Time', 'Amount'])
-
-    // Step 2: Parallel Machine Learning Inferences
-    rf_probability <- Models['rf'].Predict_Probability(scaled_features)
-    xgb_probability <- Models['xgb'].Predict_Probability(scaled_features)
-    lgbm_probability <- Models['lgbm'].Predict_Probability(scaled_features)
-    
-    votes <- 0
-    IF rf_probability >= alert_threshold THEN votes <- votes + 1
-    IF xgb_probability >= alert_threshold THEN votes <- votes + 1
-    IF lgbm_probability >= alert_threshold THEN votes <- votes + 1
-    
-    avg_ml_probability <- (rf_probability + xgb_probability + lgbm_probability) / 3
-
-    // Step 3: Industry Heuristic Rule Evaluation
-    rules_risk_score <- 0.0
-    triggered_reasons <- List()
-
-    IF transaction_data['Amount'] > 5000 THEN
-        rules_risk_score <- rules_risk_score + 0.40
-        triggered_reasons.Append("High amount threshold exceeded (> $5,000)")
-    ELSE IF transaction_data['Amount'] > 1000 THEN
-        rules_risk_score <- rules_risk_score + 0.15
-        triggered_reasons.Append("Elevated amount threshold exceeded (> $1,000)")
-    ENDIF
-
-    IF transaction_data['Category'] IS IN High_Risk_Categories_List THEN
-        rules_risk_score <- rules_risk_score + 0.25
-        triggered_reasons.Append("High-risk merchant category matched")
-    ENDIF
-
-    IF transaction_data['Device'] IS IN Suspicious_Devices_List THEN
-        rules_risk_score <- rules_risk_score + 0.30
-        triggered_reasons.Append("Suspicious device fingerprint detected")
-    ENDIF
-
-    IF transaction_data['Country'] IS IN High_Risk_Countries_List THEN
-        rules_risk_score <- rules_risk_score + 0.20
-        triggered_reasons.Append("High-risk transaction destination matched")
-    ENDIF
-
-    // Velocity Check (Querying transactions from the last 5 minutes)
-    recent_transactions_count <- DB_Query_Count(
-        card_number = transaction_data['Card_Number'], 
-        time_limit = "5 minutes"
-    )
-    IF recent_transactions_count >= 3 THEN
-        rules_risk_score <- rules_risk_score + 0.45
-        triggered_reasons.Append("High velocity trigger: repeated attempts within short interval")
-    ENDIF
-
-    rules_risk_score <- Clamp(rules_risk_score, min=0.0, max=1.0)
-
-    // Step 4: Hybrid Risk Combination
-    combined_score <- (0.70 * avg_ml_probability) + (0.30 * rules_risk_score)
-    
-    // Threshold and Consensus Resolution
-    is_fraud_flagged <- (votes >= 2) OR (combined_score >= alert_threshold) OR (rules_risk_score >= 0.80)
-    
-    IF is_fraud_flagged IS TRUE THEN
-        final_verdict <- "FRAUD"
-        final_confidence <- combined_score
-    ELSE
-        final_verdict <- "LEGITIMATE"
-        final_confidence <- 1.0 - combined_score
-    ENDIF
-
-    // Step 5: Explainability Inferences
-    shap_values <- Explainers['xgb'].Calculate_SHAP(scaled_features)
-
-    // Step 6: Log transaction record to DB
-    DB_Save_Transaction(transaction_data, final_verdict, final_confidence, triggered_reasons, shap_values)
-
-    RETURN Dict(
-        "verdict" : final_verdict,
-        "confidence" : final_confidence,
-        "model_probabilities" : List(rf_probability, xgb_probability, lgbm_probability),
-        "rules_triggered" : triggered_reasons,
-        "shap" : shap_values
-    )
-END
+Leaf-Wise (Best-First) Split Growth:
+      [Root]
+      /    \
+   [Node]  [Node]
+           /    \
+        [Node]  [Node] <-- Only split the leaf with the maximum loss reduction
 ```
+
+LightGBM also uses Gradient-based One-Side Sampling (GOSS) to keep data instances with larger gradients and randomly sample instances with smaller gradients. Exclusive Feature Bundling (EFB) merges mutually exclusive features, reducing the training feature dimensions.
 
 ---
 
-### 4.4 Source-Code Implementation
+### 4.3 Explainable AI (XAI) & SHAP Theory
+
+SHAP (SHapley Additive exPlanations) values explain predictions by allocating credit to each feature based on cooperative game theory. 
+
+#### 4.3.1 Mathematical Definition of SHAP Values
+The attribution weight $\phi_i$ of feature $i$ measures its contribution to the model output $f(x)$ relative to the base value $E[f(X)]$:
+$$\phi_i(x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
+where $F$ is the set of all input features.
+
+#### 4.3.2 Axiomatic Properties of SHAP
+SHAP values satisfy four key axioms:
+1.  **Efficiency (Local Accuracy):** The sum of the attributions matches the difference between the model prediction and the base value:
+    $$\sum_{i=1}^{|F|} \phi_i(x) = f(x) - E[f(X)]$$
+2.  **Symmetry:** If two features contribute equally to all possible feature subsets, their attributions are equal:
+    $$f_x(S \cup \{j\}) = f_x(S \cup \{k\}) \implies \phi_j(x) = \phi_k(x)$$
+3.  **Dummy Player:** A feature that has no impact on a prediction receives an attribution value of zero:
+    $$f_x(S \cup \{j\}) = f_x(S) \implies \phi_j(x) = 0$$
+4.  **Additivity:** For a model that is the sum of two sub-models, the attributions are the sum of the sub-models' attributions:
+    $$\phi_i(f + g) = \phi_i(f) + \phi_i(g)$$
+
+The platform uses `TreeExplainer` to compute local feature contributions for tree-based models in linear time, providing real-time explanations for operators.
+
+---
+
+### 4.4 Heuristic Rules Engine & Risk Combination
+
+The platform blends the average machine learning probability ($P_{\text{ML}}$) and the heuristics risk score ($\text{Risk}_{\text{Rules}}$) using a weighted sum:
+$$\text{Probability}_{\text{Combined}} = 0.70 \times P_{\text{ML}} + 0.30 \times \text{Risk}_{\text{Rules}}$$
+The final verdict is resolved as:
+$$\text{Verdict} = \begin{cases} \text{FRAUD} & \text{if } \text{Votes}_{\text{ML}} \ge 2 \text{ or } \text{Probability}_{\text{Combined}} \ge \text{Threshold} \text{ or } \text{Risk}_{\text{Rules}} \ge 0.80 \\ \text{LEGITIMATE} & \text{otherwise} \end{cases}$$
+This logic protects the system against zero-day fraud vectors (handled by heuristics) while maintaining the precision of ML models for standard transactions.
+
+---
+
+### 4.5 Source-Code Implementation
 
 The core logic of the system is split into two primary folders: `backend` (inference server) and `frontend` (operator dashboard console).
 
@@ -418,6 +338,62 @@ async function handlePredictionSubmit(event) {
 }
 ```
 
+#### 3. Program Name: [`frontend/index.html`](file:///c:/Users/sid08/OneDrive/Desktop/Clg%20Project/frontend/index.html)
+*Objective: Sets the layout structure, rendering responsive grids, data forms, preset selectors, risk meters, explainability modals, and review lists.*
+
+```html
+<!-- ===========================================================================
+PROGRAM: frontend/index.html
+OBJECTIVE: Dashboard layout template. Standard HTML5 elements with accessibility
+           aria attributes and dynamic CSS classes for rendering panels.
+============================================================================ -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCFD Radar - Credit Card Fraud Detection Platform</title>
+</head>
+<body class="dark-mode">
+    <div class="main-layout-container">
+        <!-- Top bar details -->
+        <header class="topbar">
+            <h1>Dashboard Overview</h1>
+            <div class="api-key-wrapper">
+                <input type="password" id="api-key-input" placeholder="API Key...">
+            </div>
+        </header>
+        <!-- Grids, PCA accordion, form inputs, charts are structured here -->
+    </div>
+</body>
+</html>
+```
+
+#### 4. Program Name: [`backend/train_models.py`](file:///c:/Users/sid08/OneDrive/Desktop/Clg%20Project/backend/train_models.py)
+*Objective: Reads the training dataset, scales properties, trains Random Forest, XGBoost, and LightGBM estimators, evaluates performance parameters, and serializes pickled model binaries.*
+
+```python
+# ==============================================================================
+# PROGRAM: backend/train_models.py
+# OBJECTIVE: Read raw CCFD dataset, perform scaling and splitting, fit ML
+#            classifiers, calculate performance metrics, and serialize models.
+# ==============================================================================
+import os
+import pandas as pd
+import numpy as np
+import sklearn
+import joblib
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+def train_ccfd_models(csv_path):
+    df = pd.read_csv(csv_path)
+    # Scaling and data split processing ...
+    # Fit RF, XGBoost, LGBM
+    # Save artifacts into backend/models/
+```
+
 ---
 
 ## 5. Requirement Specifications
@@ -522,7 +498,7 @@ python backend/app.py
 
 ---
 
-### 5.6 Troubleshooting & Maintenance Guide
+### 5.6 Troubleshooting & System Maintenance Guide
 
 Below are the solutions to common setup and runtime errors:
 
@@ -540,3 +516,42 @@ Below are the solutions to common setup and runtime errors:
         ```bash
         backend\venv\Scripts\python backend\train_models.py
         ```
+
+4.  **Error: "SQLite Database is Locked"**
+    *   **Cause:** Concurrent writes or an open transaction block did not close correctly.
+    *   **Fix:** The backend is configured to use a short timeout interval. If this persists, close all active browser sessions, stop the Flask server, and restart the backend.
+
+5.  **Error: "Browser console: CORS Policy blocked request"**
+    *   **Cause:** The client page is running on a port or domain not explicitly allowed by the Flask CORS configuration.
+    *   **Fix:** Check the allowed origins in your `.env` configuration file or add the origin to `ALLOWED_ORIGINS` in `app.py`.
+
+---
+
+## 6. Appendix: Performance Metrics & Validation
+
+Accuracy is a misleading metric for highly imbalanced datasets like credit card fraud, where fraud represents a tiny fraction of total transactions:
+$$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
+If 99.9% of transactions are legitimate, a baseline model that classifies all inputs as legitimate would achieve 99.9% accuracy but fail to detect any fraud.
+
+To address this, the system evaluates models using performance metrics independent of class distributions:
+
+### 6.1 Precision
+Precision measures the proportion of flagged transactions that were actually fraudulent:
+$$\text{Precision} = \frac{TP}{TP + FP}$$
+High precision is critical to minimize false alarms and reduce friction for cardholders.
+
+### 6.2 Recall (Sensitivity)
+Recall measures the proportion of actual fraud cases that were successfully identified:
+$$\text{Recall} = \frac{TP}{TP + FN}$$
+High recall ensures that most fraudulent transactions are captured.
+
+### 6.3 F1-Score
+The F1-Score is the harmonic mean of precision and recall, providing a balanced metric for model evaluation:
+$$F_1 = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$$
+
+### 6.4 ROC-AUC (Area Under the Receiver Operating Characteristic Curve)
+The ROC curve plots the True Positive Rate (TPR) against the False Positive Rate (FPR) at various thresholds:
+$$\text{TPR} = \frac{TP}{TP + FN}, \quad \text{FPR} = \frac{FP}{FP + TN}$$
+The Area Under the Curve (AUC) measures the model's ability to distinguish between legitimate and fraudulent transactions. An AUC of $1.0$ represents a perfect model, while $0.5$ represents random guessing.
+
+The platform visualizes these metrics in real-time, helping operators assess model reliability.
